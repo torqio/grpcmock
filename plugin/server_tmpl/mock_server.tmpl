@@ -4,25 +4,12 @@ package {{ .GoPackageName }}
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io/fs"
-	"log"
-	"os"
-	"path/filepath"
-	"strings"
 
-	"github.com/nsf/jsondiff"
-	"github.com/oriser/regroup"
 	"github.com/torqio/grpcmock/pkg/stub"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 {{ range $svc := .Services }}
 type {{ $svc.GoName }}MockServer struct {
-	// An array of requests-response files. The first item is the request and the second is the response
-	// The reason that it's array and not a map is because I want to retain the order
 	stubFiles stub.MethodFileStubs
 }
 
@@ -37,7 +24,7 @@ func New{{ $svc.GoName }}MockServer(stubDir string) (*{{ $svc.GoName }}MockServe
 {{ range $method := $svc.Methods }}
 func (m *{{ $svc.GoName }}MockServer) {{ $method.GoName }}(ctx context.Context, req *{{ qualifiedIdent $method.Input.GoIdent }}) (*{{ qualifiedIdent $method.Output.GoIdent }}, error) {
     var res {{ qualifiedIdent $method.Output.GoIdent }}
-    return &res, stub.GetFileStubResponse(a.stubFiles, "{{ $method.GoName }}", req, &res)
+    return &res, stub.GetFileStubResponse(m.stubFiles, "{{ $method.GoName }}", req, &res)
 }
 {{- end }}
 {{- end }}

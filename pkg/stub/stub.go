@@ -31,6 +31,14 @@ const requestSuffix = "_request.json"
 const responseSuffix = "_response.json"
 
 func MapStubFiles(rootStubsDir string) (MethodFileStubs, error) {
+	dirStat, err := os.Stat(rootStubsDir)
+	if err != nil {
+		return nil, fmt.Errorf("stat stubs directory %q: %w", rootStubsDir, err)
+	}
+	if !dirStat.IsDir() {
+		return nil, fmt.Errorf("path %q for stubs must be a directory", rootStubsDir)
+	}
+
 	stubFiles := make(MethodFileStubs)
 
 	return stubFiles, filepath.Walk(rootStubsDir, func(path string, info fs.FileInfo, err error) error {

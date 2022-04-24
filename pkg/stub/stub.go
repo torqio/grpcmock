@@ -21,14 +21,14 @@ type MethodFileStub struct {
 }
 type MethodFileStubs map[string][]MethodFileStub
 
-type FileMethodRegexpGroup struct {
+type fileMethodRegexpGroup struct {
 	Method string `regroup:"method"`
 }
 
-var FileNameTemplateRegexp = regroup.MustCompile(`(?:.*?__)?(?P<method>.+?)__request\.json`)
+var fileNameTemplateRegexp = regroup.MustCompile(`(?:.*?__)?(?P<method>.+?)__request\.json`)
 
-const RequestSuffix = "_request.json"
-const ResponseSuffix = "_response.json"
+const requestSuffix = "_request.json"
+const responseSuffix = "_response.json"
 
 func MapStubFiles(rootStubsDir string) (MethodFileStubs, error) {
 	stubFiles := make(MethodFileStubs)
@@ -41,16 +41,16 @@ func MapStubFiles(rootStubsDir string) (MethodFileStubs, error) {
 		dirName := filepath.Dir(path)
 		fileName := filepath.Base(path)
 
-		if strings.HasSuffix(fileName, ResponseSuffix) {
+		if strings.HasSuffix(fileName, responseSuffix) {
 			// Skipping response files without logging
 			return nil
 		}
-		if !strings.HasSuffix(fileName, RequestSuffix) {
-			log.Printf("Skipping file %q as it doesn't have %q suffix\n", path, RequestSuffix)
+		if !strings.HasSuffix(fileName, requestSuffix) {
+			log.Printf("Skipping file %q as it doesn't have %q suffix\n", path, requestSuffix)
 			return nil
 		}
 
-		responseFile := fileName[:len(fileName)-len(RequestSuffix)] + ResponseSuffix // replacing _request.json with _response.json
+		responseFile := fileName[:len(fileName)-len(requestSuffix)] + responseSuffix // replacing _request.json with _response.json
 		responseFullPath := filepath.Join(dirName, responseFile)
 
 		if _, err = os.Stat(responseFullPath); err != nil {
@@ -60,9 +60,9 @@ func MapStubFiles(rootStubsDir string) (MethodFileStubs, error) {
 			return fmt.Errorf("stat response file: %w", err)
 		}
 
-		fileMethod := FileMethodRegexpGroup{}
+		fileMethod := fileMethodRegexpGroup{}
 		reqFilename := filepath.Base(path)
-		if err = FileNameTemplateRegexp.MatchToTarget(reqFilename, &fileMethod); err != nil {
+		if err = fileNameTemplateRegexp.MatchToTarget(reqFilename, &fileMethod); err != nil {
 			if errors.Is(err, &regroup.NoMatchFoundError{}) {
 				return fmt.Errorf("request file %q doesn't contains method name. Request file must be in the"+
 					" following format: [description__]<RPC method name>__request.json. For example: \"some description__CreateAccount__request.json\"",

@@ -10,4 +10,4 @@ build:
 
 container: build
 	@echo "===== Building container"
-	docker build -t {{ .svc.GoName | snakecase }}_grpcmock_server .
+	docker build -t grpcmock_server .

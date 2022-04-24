@@ -4,11 +4,11 @@ import (
 	_ "embed"
 	"flag"
 	"fmt"
-	"github.com/pschlump/sprig"
 	"os"
 	"path"
 	"text/template"
 
+	"github.com/pschlump/sprig"
 	"google.golang.org/protobuf/compiler/protogen"
 )
 
@@ -35,9 +35,17 @@ func generateFileAndExecuteTemplate(plugin *protogen.Plugin, goImportPath protog
 	qualifiedIdent := func(goIdent protogen.GoIdent) string {
 		return generatedFile.QualifiedGoIdent(goIdent)
 	}
+	qualifiedIdentCustom := func(importPath protogen.GoImportPath, name string) string {
+		goIdent := protogen.GoIdent{
+			GoName:       name,
+			GoImportPath: importPath,
+		}
+		return generatedFile.QualifiedGoIdent(goIdent)
+	}
 
 	tmpl := template.Must(template.New(filename).Funcs(template.FuncMap{
-		"qualifiedIdent": qualifiedIdent,
+		"qualifiedIdent":       qualifiedIdent,
+		"qualifiedIdentCustom": qualifiedIdentCustom,
 	}).Funcs(sprig.TxtFuncMap()).Option("missingkey=error").Parse(tmplText))
 	if err := tmpl.Execute(generatedFile, templateData); err != nil {
 		return fmt.Errorf("execute template: %w", err)
@@ -45,26 +53,19 @@ func generateFileAndExecuteTemplate(plugin *protogen.Plugin, goImportPath protog
 	return nil
 }
 
-func generateCmds(plugin *protogen.Plugin, f *protogen.File) error {
-	cmdsDirectory := path.Join(f.GeneratedFilenamePrefix + "_grpcmock_cmds")
-	for _, service := range f.Services {
-		currentServiceDirectory := path.Join(cmdsDirectory, service.GoName)
-		tmplData := map[string]any{
-			"f":   f,
-			"svc": service,
-		}
+func generateCmds(plugin *protogen.Plugin) error {
+	cmdsDirectory := "grpcmock_cmds"
 
-		if err := generateFileAndExecuteTemplate(plugin, "", path.Join(currentServiceDirectory, "server.go"), CmdServerTemplate, tmplData); err != nil {
-			return fmt.Errorf("generate cmd server for service %q: %w", service.GoName, err)
-		}
+	if err := generateFileAndExecuteTemplate(plugin, "", path.Join(cmdsDirectory, "server.go"), CmdServerTemplate, plugin); err != nil {
+		return fmt.Errorf("generate cmd server: %w", err)
+	}
 
-		if err := generateFileAndExecuteTemplate(plugin, "", path.Join(currentServiceDirectory, "Dockerfile"), CmdDockerfileTemplate, tmplData); err != nil {
-			return fmt.Errorf("generate cmd Dockerfile for service %q: %w", service.GoName, err)
-		}
+	if err := generateFileAndExecuteTemplate(plugin, "", path.Join(cmdsDirectory, "Dockerfile"), CmdDockerfileTemplate, plugin); err != nil {
+		return fmt.Errorf("generate cmd Dockerfile: %w", err)
+	}
 
-		if err := generateFileAndExecuteTemplate(plugin, "", path.Join(currentServiceDirectory, "Makefile"), CmdMakefileTemplate, tmplData); err != nil {
-			return fmt.Errorf("generate cmd Makefile for service %q: %w", service.GoName, err)
-		}
+	if err := generateFileAndExecuteTemplate(plugin, "", path.Join(cmdsDirectory, "Makefile"), CmdMakefileTemplate, plugin); err != nil {
+		return fmt.Errorf("generate cmd Makefile: %w", err)
 	}
 
 	return nil
@@ -82,6 +83,8 @@ func generateFile(plugin *protogen.Plugin, f *protogen.File) error {
 func main() {
 	var flags flag.FlagSet
 	shouldGenerateCmds := flags.Bool("generate-cmds", true, "generate cmds main packages for each mocked service")
+	generated := false
+
 	protogen.Options{
 		ParamFunc: flags.Set,
 	}.Run(func(plugin *protogen.Plugin) error {
@@ -93,10 +96,16 @@ func main() {
 			if err := generateFile(plugin, f); err != nil {
 				return fmt.Errorf("generate file %q: %w", f.GeneratedFilenamePrefix, err)
 			}
-			if *shouldGenerateCmds {
-				if err := generateCmds(plugin, f); err != nil {
-					return fmt.Errorf("getnerate cmds for file %q: %w", f.GeneratedFilenamePrefix, err)
-				}
+			generated = true
+		}
+
+		if !generated {
+			return nil
+		}
+
+		if *shouldGenerateCmds {
+			if err := generateCmds(plugin); err != nil {
+				return fmt.Errorf("getnerate cmds: %w", err)
 			}
 		}
 		return nil

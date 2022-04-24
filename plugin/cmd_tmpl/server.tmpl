@@ -6,18 +6,27 @@ import (
 	"log"
 	"net"
 
-	{{ .f.GoPackageName }} {{ .f.GoImportPath }}
 	"google.golang.org/grpc"
 )
 
 func main() {
-	srv := grpc.NewServer()
-	m, err := v1.New{{ .svc.GoName }}MockServer("/stubs")
-	if err != nil {
-		log.Fatalf("Failed creating new mock server: %v\n", err)
-	}
+    srv := grpc.NewServer()
 
-	v1.Register{{ .svc.GoName }}Server(srv, m)
+    {{ range $f := .Files }}
+    {{- if not $f.Generate }}
+    {{continue}}
+    {{- end }}
+    {{- $i := 0 }}
+    {{ range $svc := $f.Services }}
+    m{{ $i }}, err := {{ qualifiedIdentCustom $f.GoImportPath (printf "New%sMockServer" $svc.GoName) }}("/stubs")
+	if err != nil {
+		log.Fatalf("Failed creating new {{ $svc.GoName }} mock server: %v\n", err)
+	}
+	{{ $f.GoPackageName }}.Register{{ $svc.GoName }}Server(srv, m{{ $i }})
+	{{- $i = add1 $i }}
+    {{ end }}
+    {{- end }}
+
 	lis, err := net.Listen("tcp", ":8081")
 	if err != nil {
 		log.Fatalf("Failed listening: %v\n", err)

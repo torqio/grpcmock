@@ -67,6 +67,7 @@ func findBasePath(plugin *protogen.Plugin) (string, error) {
 }
 
 func generateCmds(plugin *protogen.Plugin) error {
+	log("generating cmds")
 	basePath, err := findBasePath(plugin)
 	if err != nil {
 		return err

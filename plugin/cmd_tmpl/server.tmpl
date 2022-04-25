@@ -5,31 +5,22 @@ package main
 import (
 	"log"
 	"net"
-	"fmt"
 
 	"google.golang.org/grpc"
 )
 
+type registryFunc func(srv *grpc.Server) error
+
+var registries []registryFunc
+
 func main() {
     srv := grpc.NewServer()
 
-    {{ range $f := .Files }}
-    fmt.Println("hello {{ $f.GeneratedFilenamePrefix }}")
-    {{- if not $f.Generate }}
-    fmt.Println("continue")
-    {{continue}}
-    {{- end }}
-    {{- $i := 0 }}
-    {{ range $svc := $f.Services }}
-    fmt.Println("hello svc {{ $svc.GoName }}")
-    m{{ $i }}, err := {{ qualifiedIdentCustom $f.GoImportPath (printf "New%sMockServer" $svc.GoName) }}("/stubs")
-	if err != nil {
-		log.Fatalf("Failed creating new {{ $svc.GoName }} mock server: %v\n", err)
+	for _, registry := range registries {
+		if err := registry(srv); err != nil {
+			log.Fatalf("Failed register: %v", err)
+		}
 	}
-	{{ $f.GoPackageName }}.Register{{ $svc.GoName }}Server(srv, m{{ $i }})
-	{{- $i = add1 $i }}
-    {{ end }}
-    {{- end }}
 
 	lis, err := net.Listen("tcp", ":8081")
 	if err != nil {

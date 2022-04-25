@@ -2,12 +2,6 @@
 
 package {{ .GoPackageName }}
 
-import (
-	"context"
-
-	"github.com/torqio/grpcmock/pkg/stub"
-)
-
 {{ range $svc := .Services }}
 type {{ $svc.GoName }}MockServer struct {
 	stubFiles stub.MethodFileStubs

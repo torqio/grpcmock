@@ -24,11 +24,14 @@ var CmdMakefileTemplate string
 //go:embed cmd_tmpl/Dockerfile.tmpl
 var CmdDockerfileTemplate string
 
+//go:embed cmd_tmpl/registry.tmpl
+var RegistryTemplate string
+
 func log(msg string, args ...interface{}) {
 	os.Stderr.WriteString(fmt.Sprintf(msg+"\n", args...))
 }
 
-func generateFileAndExecuteTemplate(plugin *protogen.Plugin, goImportPath protogen.GoImportPath, filename string, tmplText string, templateData any) error {
+func generateFileAndExecuteTemplate(plugin *protogen.Plugin, goImportPath protogen.GoImportPath, manualImports []string, filename string, tmplText string, templateData any) error {
 	generatedFile := plugin.NewGeneratedFile(filename, goImportPath)
 	// Adding qualifiedIdent function to the template. This will allow using an imported message in case the input/output
 	// is from another proto message packcage
@@ -41,6 +44,11 @@ func generateFileAndExecuteTemplate(plugin *protogen.Plugin, goImportPath protog
 			GoImportPath: importPath,
 		}
 		return generatedFile.QualifiedGoIdent(goIdent)
+	}
+
+	for _, manualImport := range manualImports {
+		// This will make protogen to import this package (without '_' prefix)
+		qualifiedIdentCustom(protogen.GoImportPath(manualImport), "")
 	}
 
 	tmpl := template.Must(template.New(filename).Funcs(template.FuncMap{
@@ -67,22 +75,37 @@ func findBasePath(plugin *protogen.Plugin) (string, error) {
 }
 
 func generateCmds(plugin *protogen.Plugin) error {
-	log("generating cmds")
 	basePath, err := findBasePath(plugin)
 	if err != nil {
 		return err
 	}
 	cmdsDirectory := path.Join(basePath, "grpcmock_cmds")
 
-	if err := generateFileAndExecuteTemplate(plugin, "", path.Join(cmdsDirectory, "server.go"), CmdServerTemplate, plugin); err != nil {
+	if err = generateFileAndExecuteTemplate(plugin, "", nil, path.Join(cmdsDirectory, "server.go"), CmdServerTemplate, plugin); err != nil {
 		return fmt.Errorf("generate cmd server: %w", err)
 	}
 
-	if err := generateFileAndExecuteTemplate(plugin, "", path.Join(cmdsDirectory, "Dockerfile"), CmdDockerfileTemplate, plugin); err != nil {
+	for _, f := range plugin.Files {
+		if !f.Generate {
+			continue
+		}
+		if len(f.Services) == 0 {
+			continue
+		}
+		baseName := path.Base(f.GeneratedFilenamePrefix)
+		if err = generateFileAndExecuteTemplate(plugin, "", []string{
+			"fmt",
+			"google.golang.org/grpc",
+		}, path.Join(cmdsDirectory, baseName+"_registry.go"), RegistryTemplate, f); err != nil {
+			return fmt.Errorf("create registry for %q: %w", baseName, err)
+		}
+	}
+
+	if err = generateFileAndExecuteTemplate(plugin, "", nil, path.Join(cmdsDirectory, "Dockerfile"), CmdDockerfileTemplate, plugin); err != nil {
 		return fmt.Errorf("generate cmd Dockerfile: %w", err)
 	}
 
-	if err := generateFileAndExecuteTemplate(plugin, "", path.Join(cmdsDirectory, "Makefile"), CmdMakefileTemplate, plugin); err != nil {
+	if err = generateFileAndExecuteTemplate(plugin, "", nil, path.Join(cmdsDirectory, "Makefile"), CmdMakefileTemplate, plugin); err != nil {
 		return fmt.Errorf("generate cmd Makefile: %w", err)
 	}
 
@@ -91,7 +114,10 @@ func generateCmds(plugin *protogen.Plugin) error {
 
 func generateFile(plugin *protogen.Plugin, f *protogen.File) error {
 	filename := f.GeneratedFilenamePrefix + "_grpcmock.pb.go"
-	return generateFileAndExecuteTemplate(plugin, f.GoImportPath, filename, MockServerTemplate, f)
+	return generateFileAndExecuteTemplate(plugin, f.GoImportPath, []string{
+		"context",
+		"github.com/torqio/grpcmock/pkg/stub",
+	}, filename, MockServerTemplate, f)
 }
 
 func main() {

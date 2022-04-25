@@ -86,10 +86,6 @@ func generateCmds(plugin *protogen.Plugin) error {
 }
 
 func generateFile(plugin *protogen.Plugin, f *protogen.File) error {
-	if len(f.Services) == 0 {
-		return nil
-	}
-
 	filename := f.GeneratedFilenamePrefix + "_grpcmock.pb.go"
 	return generateFileAndExecuteTemplate(plugin, f.GoImportPath, filename, MockServerTemplate, f)
 }
@@ -103,7 +99,7 @@ func main() {
 		ParamFunc: flags.Set,
 	}.Run(func(plugin *protogen.Plugin) error {
 		for _, f := range plugin.Files {
-			if !f.Generate {
+			if !f.Generate || len(f.Services) == 0 {
 				continue
 			}
 
@@ -114,6 +110,7 @@ func main() {
 		}
 
 		if !generated {
+			log("nothing generated, not generating cmds.")
 			return nil
 		}
 

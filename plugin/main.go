@@ -55,7 +55,10 @@ func generateFileAndExecuteTemplate(plugin *protogen.Plugin, goImportPath protog
 
 func findBasePath(plugin *protogen.Plugin) (string, error) {
 	for _, f := range plugin.Files {
-		if !f.Generate || len(f.Services) == 0 {
+		if !f.Generate {
+			continue
+		}
+		if len(f.Services) == 0 {
 			continue
 		}
 		return path.Dir(f.GeneratedFilenamePrefix), nil
@@ -99,7 +102,10 @@ func main() {
 		ParamFunc: flags.Set,
 	}.Run(func(plugin *protogen.Plugin) error {
 		for _, f := range plugin.Files {
-			if !f.Generate || len(f.Services) == 0 {
+			if !f.Generate {
+				continue
+			}
+			if len(f.Services) == 0 {
 				continue
 			}
 
@@ -110,7 +116,6 @@ func main() {
 		}
 
 		if !generated {
-			log("nothing generated, not generating cmds.")
 			return nil
 		}
 

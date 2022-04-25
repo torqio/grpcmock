@@ -116,6 +116,7 @@ func main() {
 		}
 
 		if !generated {
+			log("nothing generated, not generating grpcmock cmds.")
 			return nil
 		}
 

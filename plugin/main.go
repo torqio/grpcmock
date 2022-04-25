@@ -53,8 +53,22 @@ func generateFileAndExecuteTemplate(plugin *protogen.Plugin, goImportPath protog
 	return nil
 }
 
+func findBasePath(plugin *protogen.Plugin) (string, error) {
+	for _, f := range plugin.Files {
+		if !f.Generate || len(f.Services) == 0 {
+			continue
+		}
+		return path.Dir(f.GeneratedFilenamePrefix), nil
+	}
+	return "", fmt.Errorf("no suitable file found for getting base path")
+}
+
 func generateCmds(plugin *protogen.Plugin) error {
-	cmdsDirectory := "grpcmock_cmds"
+	basePath, err := findBasePath(plugin)
+	if err != nil {
+		return err
+	}
+	cmdsDirectory := path.Join(basePath, "grpcmock_cmds")
 
 	if err := generateFileAndExecuteTemplate(plugin, "", path.Join(cmdsDirectory, "server.go"), CmdServerTemplate, plugin); err != nil {
 		return fmt.Errorf("generate cmd server: %w", err)

@@ -25,7 +25,7 @@ var CmdMakefileTemplate string
 var CmdDockerfileTemplate string
 
 func log(msg string, args ...interface{}) {
-	os.Stderr.WriteString(fmt.Sprintf(msg+"\n", args))
+	os.Stderr.WriteString(fmt.Sprintf(msg+"\n", args...))
 }
 
 func generateFileAndExecuteTemplate(plugin *protogen.Plugin, goImportPath protogen.GoImportPath, filename string, tmplText string, templateData any) error {

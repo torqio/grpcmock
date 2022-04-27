@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/md5"
 	_ "embed"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"os"
@@ -74,14 +76,27 @@ func findBasePath(plugin *protogen.Plugin) (string, error) {
 	return "", fmt.Errorf("no suitable file found for getting base path")
 }
 
-func generateCmds(plugin *protogen.Plugin) error {
-	basePath, err := findBasePath(plugin)
-	if err != nil {
-		return err
+// shortGeneratedFileIdentifier generates a short hash identifier for the file's GeneratedFilenamePrefix.
+// It required because the cmds can be at a root directory and multiple generated protos may have the same file name,
+// and if it won't have some unique ID it will be overridden by the latest generated proto with the same name.
+func shortGeneratedFileIdentifier(f *protogen.File) string {
+	hexSum := md5.Sum([]byte(f.GeneratedFilenamePrefix))
+	return hex.EncodeToString(hexSum[:])[:5]
+}
+
+func generateCmds(plugin *protogen.Plugin, cmdsPath string) error {
+	var err error
+	basePath := cmdsPath
+	if basePath == "" {
+		basePath, err = findBasePath(plugin)
+		if err != nil {
+			return err
+		}
 	}
 	cmdsDirectory := path.Join(basePath, "grpcmock_cmds")
+	log(cmdsDirectory)
 
-	if err = generateFileAndExecuteTemplate(plugin, "", nil, path.Join(cmdsDirectory, "server.go"), CmdServerTemplate, plugin); err != nil {
+	if err = generateFileAndExecuteTemplate(plugin, "", nil, path.Join(cmdsDirectory, "server.mockpb.go"), CmdServerTemplate, plugin); err != nil {
 		return fmt.Errorf("generate cmd server: %w", err)
 	}
 
@@ -92,11 +107,12 @@ func generateCmds(plugin *protogen.Plugin) error {
 		if len(f.Services) == 0 {
 			continue
 		}
-		baseName := path.Base(f.GeneratedFilenamePrefix)
+
+		baseName := fmt.Sprintf("%s_%s_registry.mockpb.go", shortGeneratedFileIdentifier(f), path.Base(f.GeneratedFilenamePrefix))
 		if err = generateFileAndExecuteTemplate(plugin, "", []string{
 			"fmt",
 			"google.golang.org/grpc",
-		}, path.Join(cmdsDirectory, baseName+"_registry.go"), RegistryTemplate, f); err != nil {
+		}, path.Join(cmdsDirectory, baseName), RegistryTemplate, f); err != nil {
 			return fmt.Errorf("create registry for %q: %w", baseName, err)
 		}
 	}
@@ -122,7 +138,8 @@ func generateFile(plugin *protogen.Plugin, f *protogen.File) error {
 
 func main() {
 	var flags flag.FlagSet
-	shouldGenerateCmds := flags.Bool("generate-cmds", true, "generate cmds main packages for each mocked service")
+	shouldGenerateCmds := flags.Bool("generate-cmds", true, "Generate cmds main packages for mocked services")
+	cmdsPath := flags.String("cmds-path", "", "Path to generate to cmds for the mocked services")
 	generated := false
 
 	protogen.Options{
@@ -147,7 +164,7 @@ func main() {
 		}
 
 		if *shouldGenerateCmds {
-			if err := generateCmds(plugin); err != nil {
+			if err := generateCmds(plugin, *cmdsPath); err != nil {
 				return fmt.Errorf("getnerate cmds: %w", err)
 			}
 		}

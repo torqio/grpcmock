@@ -1,2 +1,5 @@
 ---
-steps: []
+steps:
+  - id: dummy
+    name: alpine
+    args: [ "echo", "dummy" ]

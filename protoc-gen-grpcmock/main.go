@@ -94,7 +94,6 @@ func generateCmds(plugin *protogen.Plugin, cmdsPath string) error {
 		}
 	}
 	cmdsDirectory := path.Join(basePath, "grpcmock_cmds")
-	log(cmdsDirectory)
 
 	if err = generateFileAndExecuteTemplate(plugin, "", nil, path.Join(cmdsDirectory, "server.mockpb.go"), CmdServerTemplate, plugin); err != nil {
 		return fmt.Errorf("generate cmd server: %w", err)

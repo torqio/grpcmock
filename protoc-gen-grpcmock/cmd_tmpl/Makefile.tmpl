@@ -3,12 +3,19 @@
 DOCKERTAG ?= grpcmock_server
 TARGETOS ?= linux
 TARGETARCH ?= amd64
+BUILDLOCATION ?= $(shell dirname `pwd`)
+DOCKERPLATFORMS ?= linux/amd64,linux/arm64
+GOPRIVATE ?= ""
+EXTRA_BUILD_ARGS ?= ""
 
 build:
 	@echo "===== Building server"
 	GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -o server
 
-container: build
+container:
 	@echo "===== Building container"
-	docker build -t $(DOCKERTAG) .
-	rm server
+	docker buildx create --use --name grpcmockbuilder
+	docker buildx build --platform $(DOCKERPLATFORMS) --secret id=knownhost,src=$(HOME)/.ssh/known_hosts --secret id=git,src=$(HOME)/.gitconfig --ssh default --build-arg GOPRIVATE="$(GOPRIVATE)" -f ./Dockerfile -t "$(DOCKERTAG)" $(EXTRA_BUILD_ARGS) "$(BUILDLOCATION)"
+
+clean:
+	docker buildx rm grpcmockbuilder

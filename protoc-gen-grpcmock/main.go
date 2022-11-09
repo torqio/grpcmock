@@ -135,6 +135,8 @@ func generateFile(plugin *protogen.Plugin, f *protogen.File) error {
 		"testing",
 		"github.com/torqio/grpcmock/pkg/mocker",
 		"google.golang.org/grpc",
+		"google.golang.org/grpc/codes",
+		"google.golang.org/grpc/status",
 	}, filename, MockServerTemplate, f)
 }
 

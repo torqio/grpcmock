@@ -35,6 +35,10 @@ func (m *{{ $svc.GoName }}MockServer)  IsAuthenticationRequired(path string) boo
     return false
 }
 
+func (m *{{ $svc.GoName }}MockServer) ResetAll() {
+    m.mocker.ResetAll()
+}
+
 func (m *{{ $svc.GoName }}MockServer) Configure() {{ $svc.GoName }}MockServerConfigurer {
 	return {{ $svc.GoName }}MockServerConfigurer{mocker: m.mocker}
 }
@@ -70,12 +74,12 @@ func (mrr {{ $method.GoName }}ResponseRecorder) Return(res *{{ qualifiedIdent $m
 
 func (m *{{ $svc.GoName }}MockServer) {{ $method.GoName }}(ctx context.Context, req *{{ qualifiedIdent $method.Input.GoIdent }}) (*{{ qualifiedIdent $method.Output.GoIdent }}, error) {
     ret, err := m.mocker.Call("{{ $method.GoName }}", ctx, req)
-    if err != nil {
-        return nil, err
-    }
-    if len(ret) != 2 {
+    if err == nil && len(ret) != 2 {
         err = fmt.Errorf("unexpected number of return values. Expected %d return values, got %d", 2, len(ret))
-        return nil, err
+    }
+    if err != nil {
+        m.mocker.LogError(err)
+        return nil, status.Error(codes.Internal, err.Error())
     }
 
     res, _ := ret[0].(*{{ qualifiedIdent $method.Output.GoIdent }})

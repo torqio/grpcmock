@@ -64,10 +64,6 @@ func (m *Mocker) findMatchingCall(method string, args ...any) (singleExpectedCal
 	calls, ok := m.expectedCalls[method]
 	defer m.mu.RUnlock()
 
-	if !ok {
-		return singleExpectedCall{}, fmt.Errorf("no expected call for method %v", method)
-	}
-
 	// Try to find a matching call
 	for _, call := range calls {
 		if len(call.args) != len(args) {

@@ -57,7 +57,7 @@ func (mrr {{ $method.GoName }}ResponseRecorder) Return(res *{{ qualifiedIdent $m
 func (m *{{ $svc.GoName }}MockServer) {{ $method.GoName }}(ctx context.Context, req *{{ qualifiedIdent $method.Input.GoIdent }}) (*{{ qualifiedIdent $method.Output.GoIdent }}, error) {
     ret, err := m.mocker.Call("{{ $method.GoName }}", ctx, req)
     if err != nil {
-        return ret, err
+        return nil, err
     }
     if len(ret) != 2 {
         err = fmt.Errorf("unexpected number of return values. Expected %d return values, got %d", 2, len(ret))

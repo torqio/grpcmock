@@ -130,6 +130,7 @@ func generateCmds(plugin *protogen.Plugin, cmdsPath string) error {
 func generateFile(plugin *protogen.Plugin, f *protogen.File) error {
 	filename := f.GeneratedFilenamePrefix + "_grpcmock.pb.go"
 	return generateFileAndExecuteTemplate(plugin, f.GoImportPath, []string{
+		"fmt",
 		"context",
 		"github.com/torqio/grpcmock/pkg/mocker",
 		"google.golang.org/grpc",

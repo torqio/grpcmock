@@ -132,6 +132,7 @@ func generateFile(plugin *protogen.Plugin, f *protogen.File) error {
 	return generateFileAndExecuteTemplate(plugin, f.GoImportPath, []string{
 		"context",
 		"github.com/torqio/grpcmock/pkg/mocker",
+		"google.golang.org/grpc",
 	}, filename, MockServerTemplate, f)
 }
 

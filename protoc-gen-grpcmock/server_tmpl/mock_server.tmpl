@@ -65,7 +65,7 @@ func (m *{{ $svc.GoName }}MockServer) {{ $method.GoName }}(ctx context.Context, 
     }
 
     res, _ := ret[0].(*{{ qualifiedIdent $method.Output.GoIdent }})
-    err, _ := ret[1].(error)
+    err, _ = ret[1].(error)
 
     return res, err
 }

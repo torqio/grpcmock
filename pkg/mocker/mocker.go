@@ -3,6 +3,7 @@ package mocker
 import (
 	"fmt"
 	"sync"
+	"testing"
 
 	"github.com/google/uuid"
 )
@@ -34,6 +35,7 @@ type Mocker struct {
 	defaultCalls map[string]singleExpectedCall
 
 	mu sync.RWMutex
+	t  *testing.T
 }
 
 func NewMocker() *Mocker {
@@ -41,6 +43,20 @@ func NewMocker() *Mocker {
 		expectedCalls: make(map[string][]singleExpectedCall),
 		defaultCalls:  make(map[string]singleExpectedCall),
 	}
+}
+
+// SetT sets the `t` attribute of Mocker to log ongoing errors
+func (m *Mocker) SetT(t *testing.T) {
+	m.t = t
+}
+
+// LogError will log the given err message in m.t, if set
+func (m *Mocker) LogError(err error) {
+	if m.t == nil {
+		return
+	}
+	m.t.Helper()
+	m.t.Errorf("grpcmock ERROR: %v", err)
 }
 
 func (m *Mocker) findMatchingCall(method string, args ...any) (singleExpectedCall, error) {

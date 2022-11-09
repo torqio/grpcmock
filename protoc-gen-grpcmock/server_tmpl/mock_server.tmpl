@@ -15,6 +15,15 @@ func New{{ $svc.GoName }}MockServer() (*{{ $svc.GoName }}MockServer, error) {
     return &{{ $svc.GoName }}MockServer{mocker: mocker.NewMocker()}, nil
 }
 
+func New{{ $svc.GoName }}MockServerT(t *testing.T) *{{ $svc.GoName }}MockServer {
+    srv, err := New{{ $svc.GoName }}MockServer()
+    if err != nil {
+        t.Fatal(err)
+    }
+    srv.mocker.SetT(t)
+    return srv
+}
+
 // Torq grpc server support addition
 func (m *{{ $svc.GoName }}MockServer) RegisterGRPC(srv *grpc.Server) error {
 	Register{{ $svc.GoName }}Server(srv, m)

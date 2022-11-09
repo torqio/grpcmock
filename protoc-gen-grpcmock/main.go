@@ -131,7 +131,7 @@ func generateFile(plugin *protogen.Plugin, f *protogen.File) error {
 	filename := f.GeneratedFilenamePrefix + "_grpcmock.pb.go"
 	return generateFileAndExecuteTemplate(plugin, f.GoImportPath, []string{
 		"context",
-		"github.com/torqio/grpcmock/pkg/stub",
+		"github.com/torqio/grpcmock/pkg/mocker",
 	}, filename, MockServerTemplate, f)
 }
 

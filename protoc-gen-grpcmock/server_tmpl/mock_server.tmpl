@@ -21,6 +21,11 @@ func (m *{{ $svc.GoName }}MockServer) RegisterGRPC(srv *grpc.Server) error {
 	return nil
 }
 
+// For Torq grpc server authentication middleware
+func (m *{{ $svc.GoName }}MockServer)  IsAuthenticationRequired(path string) bool {
+    return false
+}
+
 func (m *{{ $svc.GoName }}MockServer) Configure() {{ $svc.GoName }}MockServerConfigurer {
 	return {{ $svc.GoName }}MockServerConfigurer{mocker: m.mocker}
 }

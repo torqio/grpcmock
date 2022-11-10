@@ -1,6 +1,6 @@
 module github.com/torqio/grpcmock/protoc-gen-grpcmock
 
-go 1.18
+go 1.19
 
 require (
 	github.com/pschlump/sprig v2.15.0+incompatible
@@ -14,5 +14,5 @@ require (
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/stretchr/testify v1.7.1 // indirect
-	golang.org/x/crypto v0.0.0-20220411220226-7b82a4e95df4 // indirect
+	golang.org/x/crypto v0.0.0-20220427172511-eb4f295cb31f // indirect
 )

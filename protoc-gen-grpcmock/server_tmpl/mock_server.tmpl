@@ -4,21 +4,88 @@ package {{ .GoPackageName }}
 
 {{ range $svc := .Services }}
 type {{ $svc.GoName }}MockServer struct {
-	stubFiles stub.MethodFileStubs
+	mocker *mocker.Mocker
 }
 
-func New{{ $svc.GoName }}MockServer(stubDir string) (*{{ $svc.GoName }}MockServer, error) {
-    stubFiles, err := stub.MapStubFiles(stubDir)
+type {{ $svc.GoName }}MockServerConfigurer struct {
+	mocker *mocker.Mocker
+}
+
+func New{{ $svc.GoName }}MockServer() (*{{ $svc.GoName }}MockServer, error) {
+    return &{{ $svc.GoName }}MockServer{mocker: mocker.NewMocker()}, nil
+}
+
+func New{{ $svc.GoName }}MockServerT(t *testing.T) *{{ $svc.GoName }}MockServer {
+    srv, err := New{{ $svc.GoName }}MockServer()
     if err != nil {
-        return nil, err
+        t.Fatal(err)
     }
-    return &{{ $svc.GoName }}MockServer{stubFiles: stubFiles}, nil
+    srv.mocker.SetT(t)
+    return srv
+}
+
+// Torq grpc server support addition
+func (m *{{ $svc.GoName }}MockServer) RegisterGRPC(srv *grpc.Server) error {
+	Register{{ $svc.GoName }}Server(srv, m)
+	return nil
+}
+
+// For Torq grpc server authentication middleware
+func (m *{{ $svc.GoName }}MockServer)  IsAuthenticationRequired(path string) bool {
+    return false
+}
+
+func (m *{{ $svc.GoName }}MockServer) ResetAll() {
+    m.mocker.ResetAll()
+}
+
+func (m *{{ $svc.GoName }}MockServer) Configure() {{ $svc.GoName }}MockServerConfigurer {
+	return {{ $svc.GoName }}MockServerConfigurer{mocker: m.mocker}
 }
 
 {{ range $method := $svc.Methods }}
+type {{ $method.GoName }}Configurer struct {
+	mocker *mocker.Mocker
+}
+func (mr {{ $svc.GoName }}MockServerConfigurer) {{ $method.GoName }}() {{ $method.GoName }}Configurer {
+	return {{ $method.GoName }}Configurer{mocker: mr.mocker}
+}
+
+func (mg {{ $method.GoName }}Configurer) DefaultReturn(res *{{ qualifiedIdent $method.Output.GoIdent }}, err error) {
+	mg.mocker.SetDefaultCall("{{ $method.GoName }}", []any{res, err})
+}
+func (mg {{ $method.GoName }}Configurer) DeleteDefault() {
+	mg.mocker.UnsetDefaultCall("{{ $method.GoName }}")
+}
+func (mg {{ $method.GoName }}Configurer) Reset() {
+	mg.mocker.ResetCall("{{ $method.GoName }}")
+}
+
+type {{ $method.GoName }}ResponseRecorder struct {
+	mocker *mocker.Mocker
+	args   []any
+}
+func (mg {{ $method.GoName }}Configurer) On(ctx, req any) {{ $method.GoName }}ResponseRecorder {
+	return {{ $method.GoName }}ResponseRecorder{mocker: mg.mocker, args: []any{ctx, req}}
+}
+func (mrr {{ $method.GoName }}ResponseRecorder) Return(res *{{ qualifiedIdent $method.Output.GoIdent }}, err error) mocker.DeletableCall {
+	return mrr.mocker.AddExpectedCall("{{ $method.GoName }}", mrr.args, []any{res, err})
+}
+
 func (m *{{ $svc.GoName }}MockServer) {{ $method.GoName }}(ctx context.Context, req *{{ qualifiedIdent $method.Input.GoIdent }}) (*{{ qualifiedIdent $method.Output.GoIdent }}, error) {
-    var res {{ qualifiedIdent $method.Output.GoIdent }}
-    return &res, stub.GetFileStubResponse(m.stubFiles, "{{ $method.GoName }}", req, &res)
+    ret, err := m.mocker.Call("{{ $method.GoName }}", ctx, req)
+    if err == nil && len(ret) != 2 {
+        err = fmt.Errorf("unexpected number of return values. Expected %d return values, got %d", 2, len(ret))
+    }
+    if err != nil {
+        m.mocker.LogError(err)
+        return nil, status.Error(codes.Internal, err.Error())
+    }
+
+    res, _ := ret[0].(*{{ qualifiedIdent $method.Output.GoIdent }})
+    err, _ = ret[1].(error)
+
+    return res, err
 }
 {{- end }}
 {{- end }}

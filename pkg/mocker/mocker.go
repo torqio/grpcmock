@@ -5,22 +5,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/google/uuid"
+	"github.com/hashicorp/go-multierror"
 )
-
-type singleExpectedCall struct {
-	args    []any
-	returns []any
-	id      string
-}
-
-func newSingleExpectedCall(args []any, returns []any) singleExpectedCall {
-	return singleExpectedCall{
-		args:    args,
-		returns: returns,
-		id:      uuid.NewString(),
-	}
-}
 
 type Matcher interface {
 	// Matches returns whether x is a match.
@@ -28,6 +14,7 @@ type Matcher interface {
 }
 
 type Mocker struct {
+	callCount     map[string]int
 	expectedCalls map[string][]singleExpectedCall
 
 	// default calls giving the option to supply a default return value for a method which will be returned
@@ -100,11 +87,15 @@ func (m *Mocker) findMatchingCall(method string, args ...any) (singleExpectedCal
 }
 
 // AddExpectedCall add a call to the expected call chain with the given expected args and the values to return
-func (m *Mocker) AddExpectedCall(method string, args []any, returns []any) DeletableCall {
+// By default, it won't verify expected times called.
+func (m *Mocker) AddExpectedCall(method string, args []any, returns []any, options ...OptionFunc) DeletableCall {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	newCall := newSingleExpectedCall(args, returns)
+	for _, o := range options {
+		o(&newCall)
+	}
 	m.expectedCalls[method] = append(m.expectedCalls[method], newCall)
 
 	return DeletableCall{
@@ -131,7 +122,56 @@ func (m *Mocker) Call(method string, args ...any) ([]any, error) {
 		return nil, err
 	}
 
+	m.mu.Lock()
+	m.callCount[method]++
+	matchedCall.call()
+	m.mu.Unlock()
+
 	return matchedCall.returns, nil
+}
+
+// GetCallCount returns how many times a given method was called by the mock
+func (m *Mocker) GetCallCount(method string) int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.callCount[method]
+}
+
+// AssertMethodExpectations asserts all calls for the provided method called the expected amount of time
+func (m *Mocker) AssertMethodExpectations(method string) error {
+	m.mu.RLock()
+	calls, ok := m.expectedCalls[method]
+	defer m.mu.RUnlock()
+
+	if !ok {
+		return nil
+	}
+
+	var retError error
+	for i, call := range calls {
+		if err := call.assertExpectation(); err != nil {
+			retError = multierror.Append(retError, fmt.Errorf("assert call #%d (id: %s): %w", i, call.id, err))
+		}
+	}
+	return retError
+}
+
+// AssertExpectations asserts all methods called the expected amount of time
+func (m *Mocker) AssertExpectations() error {
+	m.mu.RLock()
+	methods := make([]string, 0, len(m.expectedCalls))
+	for method := range m.expectedCalls {
+		methods = append(methods, method)
+	}
+	m.mu.RUnlock()
+
+	var finalErr error
+	for _, method := range methods {
+		if err := m.AssertMethodExpectations(method); err != nil {
+			finalErr = multierror.Append(finalErr, fmt.Errorf("asserting method %q: %w", methods, err))
+		}
+	}
+	return finalErr
 }
 
 // ResetAll deletes all the expected calls and default calls of all methods for this mock server.

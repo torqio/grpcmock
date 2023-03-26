@@ -8,3 +8,8 @@ require (
 	github.com/oriser/regroup v0.0.0-20210730155327-fca8d7531263
 	google.golang.org/protobuf v1.28.0
 )
+
+require (
+	github.com/hashicorp/errwrap v1.0.0 // indirect
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
+)

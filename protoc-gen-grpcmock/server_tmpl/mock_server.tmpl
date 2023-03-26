@@ -77,7 +77,7 @@ func (mrr _{{ $svc.GoName }}_{{ $method.GoName }}ResponseRecorder) ExpectedTimes
     return mrr
 }
 func (mrr _{{ $svc.GoName }}_{{ $method.GoName }}ResponseRecorder) Return(res *{{ qualifiedIdent $method.Output.GoIdent }}, err error) mocker.DeletableCall {
-	return mrr.mocker.AddExpectedCall("{{ $method.GoName }}", mrr.args, []any{res, err})
+	return mrr.mocker.AddExpectedCall("{{ $method.GoName }}", mrr.args, []any{res, err}, mocker.WithExpectedTimesCalled(mrr.timesCalled))
 }
 
 func (m *{{ $svc.GoName }}MockServer) {{ $method.GoName }}(ctx context.Context, req *{{ qualifiedIdent $method.Input.GoIdent }}) (*{{ qualifiedIdent $method.Output.GoIdent }}, error) {

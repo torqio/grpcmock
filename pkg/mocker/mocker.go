@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"sync"
 	"testing"
-
-	"github.com/hashicorp/go-multierror"
 )
 
 type Matcher interface {
@@ -87,18 +85,14 @@ func (m *Mocker) findMatchingCall(method string, args ...any) (singleExpectedCal
 }
 
 // AddExpectedCall add a call to the expected call chain with the given expected args and the values to return
-// By default, it won't verify expected times called.
-func (m *Mocker) AddExpectedCall(method string, args []any, returns []any, options ...OptionFunc) DeletableCall {
+func (m *Mocker) AddExpectedCall(method string, args []any, returns []any) RegisteredCall {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	newCall := newSingleExpectedCall(args, returns)
-	for _, o := range options {
-		o(&newCall)
-	}
 	m.expectedCalls[method] = append(m.expectedCalls[method], newCall)
 
-	return DeletableCall{
+	return RegisteredCall{
 		method: method,
 		call:   newCall,
 		mocker: m,
@@ -135,43 +129,6 @@ func (m *Mocker) GetCallCount(method string) int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.callCount[method]
-}
-
-// AssertMethodExpectations asserts all calls for the provided method called the expected amount of time
-func (m *Mocker) AssertMethodExpectations(method string) error {
-	m.mu.RLock()
-	calls, ok := m.expectedCalls[method]
-	defer m.mu.RUnlock()
-
-	if !ok {
-		return nil
-	}
-
-	var retError error
-	for i, call := range calls {
-		if err := call.assertExpectation(); err != nil {
-			retError = multierror.Append(retError, fmt.Errorf("assert call #%d (id: %s): %w", i, call.id, err))
-		}
-	}
-	return retError
-}
-
-// AssertExpectations asserts all methods called the expected amount of time
-func (m *Mocker) AssertExpectations() error {
-	m.mu.RLock()
-	methods := make([]string, 0, len(m.expectedCalls))
-	for method := range m.expectedCalls {
-		methods = append(methods, method)
-	}
-	m.mu.RUnlock()
-
-	var finalErr error
-	for _, method := range methods {
-		if err := m.AssertMethodExpectations(method); err != nil {
-			finalErr = multierror.Append(finalErr, fmt.Errorf("asserting method %q: %w", methods, err))
-		}
-	}
-	return finalErr
 }
 
 // ResetAll deletes all the expected calls and default calls of all methods for this mock server.
@@ -220,15 +177,24 @@ func (m *Mocker) DeleteCall(method, id string) {
 	m.expectedCalls[method] = append(calls[:callIndex], calls[callIndex+1:]...)
 }
 
-// DeletableCall is used as a wrapper returned by Mocker.AddExpectedCall to allow a plain Delete() method which will
-// delete that specific added call.
-type DeletableCall struct {
+// RegisteredCall is used as a wrapper returned by Mocker.AddExpectedCall to allow a plain methods about the added call
+// (like Delete(), TimesCalled(), etc..)
+type RegisteredCall struct {
 	method string
 	call   singleExpectedCall
 	mocker *Mocker
 }
 
 // Delete deletes this call from the expected call array.
-func (d *DeletableCall) Delete() {
+func (d *RegisteredCall) Delete() {
 	d.mocker.DeleteCall(d.method, d.call.id)
+}
+
+// TimesCalled returns how many times this specific mock call was called.
+// Keep in mind that if you have multiple mock calls or default call added to the same method, there may be more calls
+// to that method other than the times called returned from this specific mock call.
+// To get the amount of times a method calls from all the added mock calls (including the default call) use
+// `<mocker_server>.Configure().<method>.TimesCalled()`
+func (d *RegisteredCall) TimesCalled() int {
+	return d.call.timesCalled()
 }

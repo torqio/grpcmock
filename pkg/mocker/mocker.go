@@ -85,14 +85,14 @@ func (m *Mocker) findMatchingCall(method string, args ...any) (singleExpectedCal
 }
 
 // AddExpectedCall add a call to the expected call chain with the given expected args and the values to return
-func (m *Mocker) AddExpectedCall(method string, args []any, returns []any) RegisteredCall {
+func (m *Mocker) AddExpectedCall(method string, args []any, returns []any) *RegisteredCall {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	newCall := newSingleExpectedCall(args, returns)
 	m.expectedCalls[method] = append(m.expectedCalls[method], newCall)
 
-	return RegisteredCall{
+	return &RegisteredCall{
 		method: method,
 		call:   newCall,
 		mocker: m,

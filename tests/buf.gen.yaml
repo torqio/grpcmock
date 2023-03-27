@@ -1,0 +1,15 @@
+version: v1
+plugins:
+  - remote: buf.build/library/plugins/go
+    out: .
+    opt:
+      - paths=source_relative
+  - remote: buf.build/library/plugins/go-grpc
+    out: .
+    opt:
+      - paths=source_relative
+      - require_unimplemented_servers=false
+  - plugin: grpcmock-test
+    out: .
+    opt:
+      - paths=source_relative

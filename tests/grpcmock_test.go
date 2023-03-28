@@ -15,6 +15,11 @@ import (
 	"stackpulse.dev/testing/grpctest"
 )
 
+// Those tests won't compile unless you run `make test`. This is because they need the test proto to be compiled
+// and the `make test` command is make sure of that.
+// The reason we are not pre-compile and push it as part of the repo is that we want a fresh compilation of the proto
+// as part of the test, because it tests the plugin code generation (which generated as part of the proto compilation).
+
 type exampleReqMatcher struct {
 	req string
 }

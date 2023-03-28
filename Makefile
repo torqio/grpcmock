@@ -7,4 +7,4 @@ test:
 	@echo "-> Compiling test protos"
 	@cd ${TEST_PROTOS_DIR} && PATH=$(abspath ${TEST_PROTOS_DIR}):${PATH} buf generate
 	@echo "-> Running plugin tests"
-	@cd ${TEST_PROTOS_DIR} && gotestsum -race --format testname
+	@cd ${TEST_PROTOS_DIR} && gotestsum --format testname

@@ -1,0 +1,91 @@
+package tests
+
+import (
+	"context"
+	"sync/atomic"
+	"testing"
+
+	"gotest.tools/assert"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"github.com/torqio/grpcmock/pkg/mocker"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"stackpulse.dev/testing/grpctest"
+)
+
+type exampleReqMatcher struct {
+	req string
+}
+
+func (e exampleReqMatcher) Matches(x any) bool {
+	req, ok := x.(*ExampleMethodRequest)
+	if !ok {
+		return false
+	}
+
+	return req.Req == e.req
+}
+
+func TestGRPCMock(t *testing.T) {
+	ctx := context.Background()
+	testServer := NewExampleServiceMockServerT(t)
+	srv := grpctest.NewTestServer(ctx, t, testServer, grpctest.WithoutMiddlewares())
+
+	conn, err := grpc.Dial(srv.Addr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+
+	client := NewExampleServiceClient(conn)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	defaultRes := "default"
+	testServer.Configure().ExampleMethod().DefaultReturn(&ExampleMethodResponse{Res: defaultRes}, nil)
+
+	totalExpectedCalls := int32(0)
+
+	tests := []struct {
+		name      string
+		callCount int
+	}{
+		{
+			name:      "single call",
+			callCount: 1,
+		},
+		{
+			name:      "multiple calls",
+			callCount: 10,
+		},
+	}
+	for _, tc := range tests {
+		tc := tc
+		// Running the tests multiple times in parallel to make sure they work in parallel
+		for i := 0; i < 50; i++ {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				currentReq := uuid.NewString()
+				call := testServer.Configure().ExampleMethod().On(mocker.Any(), exampleReqMatcher{req: currentReq}).Return(&ExampleMethodResponse{Res: currentReq}, nil)
+
+				for i := 0; i < tc.callCount; i++ {
+					res, err := client.ExampleMethod(ctx, &ExampleMethodRequest{Req: currentReq})
+					require.NoError(t, err)
+					assert.Equal(t, currentReq, res.GetRes())
+				}
+
+				assert.Equal(t, tc.callCount, call.TimesCalled())
+
+				call.Delete()
+
+				res, err := client.ExampleMethod(ctx, &ExampleMethodRequest{Req: currentReq})
+				require.NoError(t, err)
+				assert.Equal(t, defaultRes, res.GetRes())
+
+				atomic.AddInt32(&totalExpectedCalls, int32(tc.callCount+1))
+			})
+		}
+	}
+	assert.Equal(t, int(totalExpectedCalls), testServer.Configure().ExampleMethod().TimesCalled())
+}

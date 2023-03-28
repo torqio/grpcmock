@@ -24,14 +24,14 @@ func newSingleExpectedCall(args []any, returns []any) singleExpectedCall {
 	}
 }
 
-func (s singleExpectedCall) call() {
+func (s *singleExpectedCall) call() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.actualCalls++
 }
 
-func (s singleExpectedCall) timesCalled() int {
+func (s *singleExpectedCall) timesCalled() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

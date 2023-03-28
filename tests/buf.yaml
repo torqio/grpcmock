@@ -1,0 +1,9 @@
+version: v1
+name: buf.build/torq/field-access
+lint:
+  use:
+    - COMMENTS
+    - DEFAULT
+  except:
+    - PACKAGE_DIRECTORY_MATCH
+    - SERVICE_SUFFIX

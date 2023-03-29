@@ -201,3 +201,17 @@ func (d *RegisteredCall) Delete() {
 func (d *RegisteredCall) TimesCalled() int {
 	return d.call.timesCalled()
 }
+
+// Deprecated: For BC grpcmocks
+// DeletableCall is used as a wrapper returned by Mocker.AddExpectedCall to allow a plain Delete() method which will
+// delete that specific added call.
+type DeletableCall struct {
+	method string
+	call   singleExpectedCall
+	mocker *Mocker
+}
+
+// Delete deletes this call from the expected call array.
+func (d *DeletableCall) Delete() {
+	d.mocker.DeleteCall(d.method, d.call.id)
+}

@@ -4,23 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
-
-	"github.com/google/uuid"
 )
-
-type singleExpectedCall struct {
-	args    []any
-	returns []any
-	id      string
-}
-
-func newSingleExpectedCall(args []any, returns []any) singleExpectedCall {
-	return singleExpectedCall{
-		args:    args,
-		returns: returns,
-		id:      uuid.NewString(),
-	}
-}
 
 type Matcher interface {
 	// Matches returns whether x is a match.
@@ -28,11 +12,12 @@ type Matcher interface {
 }
 
 type Mocker struct {
-	expectedCalls map[string][]singleExpectedCall
+	callCount     map[string]int
+	expectedCalls map[string][]*singleExpectedCall
 
 	// default calls giving the option to supply a default return value for a method which will be returned
 	// in case no other calls in expectedCalls matched
-	defaultCalls map[string]singleExpectedCall
+	defaultCalls map[string]*singleExpectedCall
 
 	mu sync.RWMutex
 	t  *testing.T
@@ -40,8 +25,9 @@ type Mocker struct {
 
 func NewMocker() *Mocker {
 	return &Mocker{
-		expectedCalls: make(map[string][]singleExpectedCall),
-		defaultCalls:  make(map[string]singleExpectedCall),
+		callCount:     make(map[string]int),
+		expectedCalls: make(map[string][]*singleExpectedCall),
+		defaultCalls:  make(map[string]*singleExpectedCall),
 	}
 }
 
@@ -59,15 +45,16 @@ func (m *Mocker) LogError(err error) {
 	m.t.Errorf("grpcmock ERROR: %v", err)
 }
 
-func (m *Mocker) findMatchingCall(method string, args ...any) (singleExpectedCall, error) {
+func (m *Mocker) findMatchingCall(method string, args ...any) (*singleExpectedCall, error) {
 	m.mu.RLock()
-	calls, ok := m.expectedCalls[method]
 	defer m.mu.RUnlock()
+
+	calls, ok := m.expectedCalls[method]
 
 	// Try to find a matching call
 	for _, call := range calls {
 		if len(call.args) != len(args) {
-			return singleExpectedCall{}, fmt.Errorf("got unexpected length of argument for methhod %v. Expected %d args, got %d", method, len(call.args), len(args))
+			return nil, fmt.Errorf("got unexpected length of argument for methhod %v. Expected %d args, got %d", method, len(call.args), len(args))
 		}
 		matches := true
 		for i, arg := range call.args {
@@ -87,29 +74,27 @@ func (m *Mocker) findMatchingCall(method string, args ...any) (singleExpectedCal
 	}
 
 	// No matching call, checking if we have default for that method
-	m.mu.RLock()
 	call, ok := m.defaultCalls[method]
-	m.mu.RUnlock()
 
 	if ok {
 		return call, nil
 	}
 
-	return singleExpectedCall{}, fmt.Errorf("no matching expected call nor default retrurn for method %v with given arguments. "+
+	return nil, fmt.Errorf("no matching expected call nor default retrurn for method %v with given arguments. "+
 		"Use Configure().%v() to configure an expected call or default return value", method, method)
 }
 
 // AddExpectedCall add a call to the expected call chain with the given expected args and the values to return
-func (m *Mocker) AddExpectedCall(method string, args []any, returns []any) DeletableCall {
+func (m *Mocker) AddExpectedCall(method string, args []any, returns []any) *RegisteredCall {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	newCall := newSingleExpectedCall(args, returns)
-	m.expectedCalls[method] = append(m.expectedCalls[method], newCall)
+	m.expectedCalls[method] = append(m.expectedCalls[method], &newCall)
 
-	return DeletableCall{
+	return &RegisteredCall{
 		method: method,
-		call:   newCall,
+		call:   &newCall,
 		mocker: m,
 	}
 }
@@ -119,7 +104,8 @@ func (m *Mocker) SetDefaultCall(method string, returns []any) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.defaultCalls[method] = newSingleExpectedCall([]any{}, returns)
+	call := newSingleExpectedCall([]any{}, returns)
+	m.defaultCalls[method] = &call
 }
 
 // Call try to find a matching call for the given method with the given arguments.
@@ -131,7 +117,19 @@ func (m *Mocker) Call(method string, args ...any) ([]any, error) {
 		return nil, err
 	}
 
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.callCount[method]++
+	matchedCall.call()
+
 	return matchedCall.returns, nil
+}
+
+// GetCallCount returns how many times a given method was called by the mock
+func (m *Mocker) GetCallCount(method string) int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.callCount[method]
 }
 
 // ResetAll deletes all the expected calls and default calls of all methods for this mock server.
@@ -139,8 +137,9 @@ func (m *Mocker) ResetAll() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.expectedCalls = make(map[string][]singleExpectedCall)
-	m.defaultCalls = make(map[string]singleExpectedCall)
+	m.callCount = make(map[string]int)
+	m.expectedCalls = make(map[string][]*singleExpectedCall)
+	m.defaultCalls = make(map[string]*singleExpectedCall)
 }
 
 // ResetCall deletes all the expected call and the default call for a specific method
@@ -148,6 +147,7 @@ func (m *Mocker) ResetCall(method string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	m.callCount[method] = 0
 	m.expectedCalls[method] = nil
 	delete(m.defaultCalls, method)
 }
@@ -180,15 +180,24 @@ func (m *Mocker) DeleteCall(method, id string) {
 	m.expectedCalls[method] = append(calls[:callIndex], calls[callIndex+1:]...)
 }
 
-// DeletableCall is used as a wrapper returned by Mocker.AddExpectedCall to allow a plain Delete() method which will
-// delete that specific added call.
-type DeletableCall struct {
+// RegisteredCall is used as a wrapper returned by Mocker.AddExpectedCall to allow a plain methods about the added call
+// (like Delete(), TimesCalled(), etc..)
+type RegisteredCall struct {
 	method string
-	call   singleExpectedCall
+	call   *singleExpectedCall
 	mocker *Mocker
 }
 
 // Delete deletes this call from the expected call array.
-func (d *DeletableCall) Delete() {
+func (d *RegisteredCall) Delete() {
 	d.mocker.DeleteCall(d.method, d.call.id)
+}
+
+// TimesCalled returns how many times this specific mock call was called.
+// Keep in mind that if you have multiple mock calls or default call added to the same method, there may be more calls
+// to that method other than the times called returned from this specific mock call.
+// To get the amount of times a method calls from all the added mock calls (including the default call) use
+// `<mocker_server>.Configure().<method>.TimesCalled()`
+func (d *RegisteredCall) TimesCalled() int {
+	return d.call.timesCalled()
 }

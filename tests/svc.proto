@@ -1,0 +1,14 @@
+syntax = "proto3";
+package grpcmock.example;
+option go_package = "github.com/torqio/grpcmock/tests";
+
+service ExampleService {
+  rpc ExampleMethod(ExampleMethodRequest) returns (ExampleMethodResponse);
+}
+
+message ExampleMethodRequest {
+  string req = 1;
+}
+message ExampleMethodResponse {
+  string res = 1;
+}

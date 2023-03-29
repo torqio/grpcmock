@@ -1,1 +1,4 @@
 .idea/
+
+tests/*.pb.go
+tests/protoc-gen-grpcmock-test

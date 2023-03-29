@@ -84,8 +84,24 @@ func (m *Mocker) findMatchingCall(method string, args ...any) (*singleExpectedCa
 		"Use Configure().%v() to configure an expected call or default return value", method, method)
 }
 
+// Deprecated: For BC grpcmocks
 // AddExpectedCall add a call to the expected call chain with the given expected args and the values to return
-func (m *Mocker) AddExpectedCall(method string, args []any, returns []any) *RegisteredCall {
+func (m *Mocker) AddExpectedCall(method string, args []any, returns []any) DeletableCall {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	newCall := newSingleExpectedCall(args, returns)
+	m.expectedCalls[method] = append(m.expectedCalls[method], &newCall)
+
+	return DeletableCall{
+		method: method,
+		call:   newCall,
+		mocker: m,
+	}
+}
+
+// AddExpectedCallV2 add a call to the expected call chain with the given expected args and the values to return
+func (m *Mocker) AddExpectedCallV2(method string, args []any, returns []any) *RegisteredCall {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -200,4 +216,18 @@ func (d *RegisteredCall) Delete() {
 // `<mocker_server>.Configure().<method>.TimesCalled()`
 func (d *RegisteredCall) TimesCalled() int {
 	return d.call.timesCalled()
+}
+
+// Deprecated: For BC grpcmocks
+// DeletableCall is used as a wrapper returned by Mocker.AddExpectedCall to allow a plain Delete() method which will
+// delete that specific added call.
+type DeletableCall struct {
+	method string
+	call   singleExpectedCall
+	mocker *Mocker
+}
+
+// Delete deletes this call from the expected call array.
+func (d *DeletableCall) Delete() {
+	d.mocker.DeleteCall(d.method, d.call.id)
 }

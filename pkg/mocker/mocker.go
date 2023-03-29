@@ -84,8 +84,24 @@ func (m *Mocker) findMatchingCall(method string, args ...any) (*singleExpectedCa
 		"Use Configure().%v() to configure an expected call or default return value", method, method)
 }
 
+// Deprecated: For BC grpcmocks
 // AddExpectedCall add a call to the expected call chain with the given expected args and the values to return
-func (m *Mocker) AddExpectedCall(method string, args []any, returns []any) *RegisteredCall {
+func (m *Mocker) AddExpectedCall(method string, args []any, returns []any) DeletableCall {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	newCall := newSingleExpectedCall(args, returns)
+	m.expectedCalls[method] = append(m.expectedCalls[method], &newCall)
+
+	return DeletableCall{
+		method: method,
+		call:   newCall,
+		mocker: m,
+	}
+}
+
+// AddExpectedCallV2 add a call to the expected call chain with the given expected args and the values to return
+func (m *Mocker) AddExpectedCallV2(method string, args []any, returns []any) *RegisteredCall {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

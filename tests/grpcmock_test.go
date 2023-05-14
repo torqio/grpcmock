@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"net"
 	"sync/atomic"
 	"testing"
 
@@ -12,8 +13,9 @@ import (
 	"github.com/torqio/grpcmock/pkg/mocker"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"stackpulse.dev/testing/grpctest"
 )
+
+const testSrvAddr = ":8881"
 
 // Those tests won't compile unless you run `make test`. This is because they need the test proto to be compiled
 // and the `make test` command is make sure of that.
@@ -33,12 +35,29 @@ func (e exampleReqMatcher) Matches(x any) bool {
 	return req.Req == e.req
 }
 
+func startGrpcServer(t *testing.T, testServer *ExampleServiceMockServer) *grpc.Server {
+	lis, err := net.Listen("tcp", testSrvAddr)
+	srv := grpc.NewServer()
+	t.Cleanup(func() {
+		srv.Stop()
+		lis.Close()
+	})
+
+	go func() {
+		require.NoError(t, err)
+		RegisterExampleServiceServer(srv, testServer)
+		require.NoError(t, srv.Serve(lis))
+	}()
+
+	return srv
+}
+
 func TestGRPCMock(t *testing.T) {
 	ctx := context.Background()
 	testServer := NewExampleServiceMockServerT(t)
-	srv := grpctest.NewTestServer(ctx, t, testServer, grpctest.WithoutMiddlewares())
+	_ = startGrpcServer(t, testServer)
 
-	conn, err := grpc.Dial(srv.Addr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(testSrvAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 
 	client := NewExampleServiceClient(conn)

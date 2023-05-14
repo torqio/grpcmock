@@ -9,7 +9,6 @@ require (
 	google.golang.org/grpc v1.54.0
 	google.golang.org/protobuf v1.28.1
 	gotest.tools v2.2.0+incompatible
-	stackpulse.dev v0.0.0-20230323122755-5b3145270237
 )
 
 require (

@@ -80,7 +80,7 @@ func (m *Mocker) findMatchingCall(method string, args ...any) (*singleExpectedCa
 		return call, nil
 	}
 
-	return nil, fmt.Errorf("no matching expected call nor default retrurn for method %v with given arguments. "+
+	return nil, fmt.Errorf("no matching expected call nor default return for method %v with given arguments. "+
 		"Use Configure().%v() to configure an expected call or default return value", method, method)
 }
 

@@ -24,13 +24,11 @@ func New{{ $svc.GoName }}MockServerT(t *testing.T) *{{ $svc.GoName }}MockServer 
     return srv
 }
 
-// Torq grpc server support addition
 func (m *{{ $svc.GoName }}MockServer) RegisterGRPC(srv *grpc.Server) error {
 	Register{{ $svc.GoName }}Server(srv, m)
 	return nil
 }
 
-// For Torq grpc server authentication middleware
 func (m *{{ $svc.GoName }}MockServer)  IsAuthenticationRequired(path string) bool {
     return false
 }

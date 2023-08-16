@@ -22,19 +22,6 @@ const testSrvAddr = ":8881"
 // The reason we are not pre-compile and push it as part of the repo is that we want a fresh compilation of the proto
 // as part of the test, because it tests the plugin code generation (which generated as part of the proto compilation).
 
-type exampleReqMatcher struct {
-	req string
-}
-
-func (e exampleReqMatcher) Matches(x any) bool {
-	req, ok := x.(*ExampleMethodRequest)
-	if !ok {
-		return false
-	}
-
-	return req.Req == e.req
-}
-
 func startGrpcServer(t *testing.T, testServer *ExampleServiceMockServer) *grpc.Server {
 	lis, err := net.Listen("tcp", testSrvAddr)
 	srv := grpc.NewServer()
@@ -91,7 +78,7 @@ func TestGRPCMock(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				currentReq := uuid.NewString()
-				call := testServer.Configure().ExampleMethod().On(mocker.Any(), exampleReqMatcher{req: currentReq}).Return(&ExampleMethodResponse{Res: currentReq}, nil)
+				call := testServer.Configure().ExampleMethod().On(mocker.Any(), &ExampleMethodRequest{Req: currentReq}).Return(&ExampleMethodResponse{Res: currentReq}, nil)
 
 				for i := 0; i < tc.callCount; i++ {
 					res, err := client.ExampleMethod(ctx, &ExampleMethodRequest{Req: currentReq})

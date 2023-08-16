@@ -1,5 +1,5 @@
 version: v1
-name: buf.build/torq/field-access
+name: buf.build/torq/grpcmock
 lint:
   use:
     - COMMENTS

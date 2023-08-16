@@ -6,6 +6,15 @@ import (
 	"testing"
 )
 
+type ErrNoMatchingCalls struct {
+	Method string
+}
+
+func (e ErrNoMatchingCalls) Error() string {
+	return fmt.Sprintf("no matching expected call nor default return for method %v with given arguments. "+
+		"Use Configure().%v() to configure an expected call or default return value", e.Method, e.Method)
+}
+
 type Matcher interface {
 	// Matches returns whether x is a match.
 	Matches(x any) bool
@@ -80,8 +89,7 @@ func (m *Mocker) findMatchingCall(method string, args ...any) (*singleExpectedCa
 		return call, nil
 	}
 
-	return nil, fmt.Errorf("no matching expected call nor default return for method %v with given arguments. "+
-		"Use Configure().%v() to configure an expected call or default return value", method, method)
+	return nil, ErrNoMatchingCalls{method}
 }
 
 // Deprecated: For BC grpcmocks

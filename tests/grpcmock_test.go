@@ -2,6 +2,9 @@ package tests
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"io"
 	"sync/atomic"
 	"testing"
 
@@ -93,4 +96,33 @@ func TestGRPCMock(t *testing.T) {
 		}
 	}
 	assert.Equal(t, int(totalExpectedCalls), testServer.Configure().ExampleMethod().TimesCalled())
+}
+
+func TestGRPCMockStreamResponse(t *testing.T) {
+	ctx := context.Background()
+	testServer := NewExampleServiceMockServerT(t)
+	srv := grpctest.NewTestServer(ctx, t, testServer, grpctest.WithoutMiddlewares())
+
+	conn, err := grpc.Dial(srv.Addr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+
+	client := NewExampleServiceClient(conn)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	testServer.Configure().ExampleStreamResponse().On(&ExampleMethodRequest{Req: "hi"}).Return([]*ExampleMethodResponse{{Res: "hi"}, {Res: "bi"}})
+
+	stream, err := client.ExampleStreamResponse(context.Background(), &ExampleMethodRequest{Req: "hi"})
+	require.NoError(t, err)
+
+	for {
+		res, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+
+		fmt.Println(res)
+	}
 }

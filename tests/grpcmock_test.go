@@ -3,14 +3,13 @@ package tests
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
+	"strconv"
 	"sync/atomic"
 	"testing"
 
-	"gotest.tools/assert"
-
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/torqio/grpcmock/pkg/mocker"
 	"google.golang.org/grpc"
@@ -111,18 +110,74 @@ func TestGRPCMockStreamResponse(t *testing.T) {
 		_ = conn.Close()
 	})
 
-	testServer.Configure().ExampleStreamResponse().On(&ExampleMethodRequest{Req: "hi"}).Return([]*ExampleMethodResponse{{Res: "hi"}, {Res: "bi"}}, nil)
+	defaultStreamRes := []*ExampleMethodResponse{{Res: "default"}}
+	testServer.Configure().ExampleStreamResponse().DefaultReturn(defaultStreamRes, nil)
 
-	stream, err := client.ExampleStreamResponse(context.Background(), &ExampleMethodRequest{Req: "hi"})
-	require.NoError(t, err)
+	totalExpectedCalls := int32(0)
 
-	for {
-		res, err := stream.Recv()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		require.NoError(t, err)
-
-		fmt.Println(res)
+	tests := []struct {
+		name           string
+		retStreamCount int
+		callCount      int
+	}{
+		{
+			name:           "single call",
+			retStreamCount: 2,
+			callCount:      1,
+		},
+		{
+			name:           "multiple calls",
+			retStreamCount: 10,
+			callCount:      10,
+		},
 	}
+	for _, tc := range tests {
+		tc := tc
+		// Running the tests multiple times in parallel to make sure they work in parallel
+		for i := 0; i < 50; i++ {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				currentReq := uuid.NewString()
+
+				retStream := make([]*ExampleMethodResponse, 0, tc.retStreamCount)
+				for i := 0; i < tc.retStreamCount; i++ {
+					retStream = append(retStream, &ExampleMethodResponse{Res: currentReq + "_" + strconv.Itoa(i)})
+				}
+				call := testServer.Configure().ExampleStreamResponse().On(&ExampleMethodRequest{Req: currentReq}).Return(retStream, nil)
+
+				for i := 0; i < tc.callCount; i++ {
+					stream, err := client.ExampleStreamResponse(context.Background(), &ExampleMethodRequest{Req: currentReq})
+					require.NoError(t, err)
+
+					for _, expectedRes := range retStream {
+						res, err := stream.Recv()
+						require.NoError(t, err)
+						assert.Equal(t, expectedRes.GetRes(), res.GetRes())
+					}
+					_, err = stream.Recv()
+					require.Error(t, err)
+					assert.True(t, errors.Is(err, io.EOF))
+				}
+
+				assert.Equal(t, tc.callCount, call.TimesCalled())
+
+				call.Delete()
+
+				stream, err := client.ExampleStreamResponse(context.Background(), &ExampleMethodRequest{Req: currentReq})
+				require.NoError(t, err)
+				for _, expectedRes := range defaultStreamRes {
+					res, err := stream.Recv()
+					require.NoError(t, err)
+					assert.Equal(t, expectedRes.GetRes(), res.GetRes())
+				}
+				_, err = stream.Recv()
+				require.Error(t, err)
+				assert.True(t, errors.Is(err, io.EOF))
+
+				atomic.AddInt32(&totalExpectedCalls, int32(tc.callCount+1))
+			})
+		}
+	}
+	assert.Equal(t, int(totalExpectedCalls), testServer.Configure().ExampleStreamResponse().TimesCalled())
 }

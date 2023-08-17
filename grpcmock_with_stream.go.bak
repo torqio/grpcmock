@@ -112,12 +112,12 @@ func (mr ExampleServiceMockServerConfigurer) ExampleStreamResponse() _ExampleSer
 	return _ExampleService_ExampleStreamResponseConfigurer{mocker: mr.mocker}
 }
 
-func (mg _ExampleService_ExampleStreamResponseConfigurer) DefaultReturn(res []*ExampleMethodResponse) {
+func (mg _ExampleService_ExampleStreamResponseConfigurer) DefaultReturn(res []*ExampleMethodResponse, err error) {
 	anyRes := make([]any, len(res))
 	for i, v := range res {
 		anyRes[i] = v
 	}
-	mg.mocker.SetDefaultCall("ExampleStreamResponse", anyRes)
+	mg.mocker.SetDefaultCall("ExampleStreamResponse", []any{anyRes, err})
 }
 func (mg _ExampleService_ExampleStreamResponseConfigurer) DeleteDefault() {
 	mg.mocker.UnsetDefaultCall("ExampleStreamResponse")
@@ -137,26 +137,33 @@ type _ExampleService_ExampleStreamResponseResponseRecorder struct {
 func (mg _ExampleService_ExampleStreamResponseConfigurer) On(req any) _ExampleService_ExampleStreamResponseResponseRecorder {
 	return _ExampleService_ExampleStreamResponseResponseRecorder{mocker: mg.mocker, args: []any{req}}
 }
-func (mrr _ExampleService_ExampleStreamResponseResponseRecorder) Return(res []*ExampleMethodResponse) *mocker.RegisteredCall {
+func (mrr _ExampleService_ExampleStreamResponseResponseRecorder) Return(res []*ExampleMethodResponse, err error) *mocker.RegisteredCall {
 	anyRes := make([]any, len(res))
 	for i, v := range res {
 		anyRes[i] = v
 	}
-	return mrr.mocker.AddExpectedCallV2("ExampleStreamResponse", mrr.args, anyRes)
+	return mrr.mocker.AddExpectedCallV2("ExampleStreamResponse", mrr.args, []any{anyRes, err})
 }
 
 func (m *ExampleServiceMockServer) ExampleStreamResponse(req *ExampleMethodRequest, stream ExampleService_ExampleStreamResponseServer) error {
 	ret, err := m.mocker.Call("ExampleStreamResponse", req)
-	if err == nil && len(ret) == 0 {
-		err = fmt.Errorf("unexpected number of return values. Expected at least 1 return values to stream, got %d", len(ret))
+	if err == nil && len(ret) != 2 {
+		err = fmt.Errorf("unexpected number of return values. Expected %d return values to stream, got %d", 2, len(ret))
 	}
 	if err != nil {
 		m.mocker.LogError(err)
 		return status.Error(codes.Internal, err.Error())
 	}
 
-	for _, res := range ret {
-		if err := stream.Send(res.(*ExampleMethodResponse)); err != nil {
+	results, _ := ret[0].([]*ExampleMethodResponse)
+	err, _ = ret[1].(error)
+
+	if err != nil {
+		return err
+	}
+
+	for _, res := range results {
+		if err := stream.Send(res); err != nil {
 			return err
 		}
 	}
@@ -190,8 +197,8 @@ type _ExampleService_ExampleStreamRequestResponseRecorder struct {
 	args   []any
 }
 
-func (mg _ExampleService_ExampleStreamRequestConfigurer) On(ctx, req any) _ExampleService_ExampleStreamRequestResponseRecorder {
-	return _ExampleService_ExampleStreamRequestResponseRecorder{mocker: mg.mocker, args: []any{ctx, req}}
+func (mg _ExampleService_ExampleStreamRequestConfigurer) On(req any) _ExampleService_ExampleStreamRequestResponseRecorder {
+	return _ExampleService_ExampleStreamRequestResponseRecorder{mocker: mg.mocker, args: []any{req}}
 }
 func (mrr _ExampleService_ExampleStreamRequestResponseRecorder) Return(res *ExampleMethodResponse, err error) *mocker.RegisteredCall {
 	return mrr.mocker.AddExpectedCallV2("ExampleStreamRequest", mrr.args, []any{res, err})
@@ -210,8 +217,8 @@ func (m *ExampleServiceMockServer) ExampleStreamRequest(stream ExampleService_Ex
 		}
 
 		ret, err := m.mocker.Call("ExampleStreamRequest", msg)
-		if err == nil && len(ret) != 1 {
-			err = fmt.Errorf("unexpected number of return values. Expected %d return values, got %d", 1, len(ret))
+		if err == nil && len(ret) != 2 {
+			err = fmt.Errorf("unexpected number of return values. Expected %d return values, got %d", 2, len(ret))
 		}
 
 		if err != nil {
@@ -223,6 +230,12 @@ func (m *ExampleServiceMockServer) ExampleStreamRequest(stream ExampleService_Ex
 		}
 
 		res := ret[0].(*ExampleMethodResponse)
+		err = ret[1].(error)
+
+		if err != nil {
+			return err
+		}
+
 		return stream.SendAndClose(res)
 	}
 
@@ -239,7 +252,7 @@ func (mr ExampleServiceMockServerConfigurer) ExampleStreamRequestResponse() _Exa
 	return _ExampleService_ExampleStreamRequestResponseConfigurer{mocker: mr.mocker}
 }
 
-func (mg _ExampleService_ExampleStreamRequestResponseConfigurer) DefaultReturn(res *ExampleMethodResponse, err error) {
+func (mg _ExampleService_ExampleStreamRequestResponseConfigurer) DefaultReturn(res []*ExampleMethodResponse, err error) {
 	mg.mocker.SetDefaultCall("ExampleStreamRequestResponse", []any{res, err})
 }
 func (mg _ExampleService_ExampleStreamRequestResponseConfigurer) DeleteDefault() {
@@ -257,11 +270,15 @@ type _ExampleService_ExampleStreamRequestResponseResponseRecorder struct {
 	args   []any
 }
 
-func (mg _ExampleService_ExampleStreamRequestResponseConfigurer) On(ctx, req any) _ExampleService_ExampleStreamRequestResponseResponseRecorder {
-	return _ExampleService_ExampleStreamRequestResponseResponseRecorder{mocker: mg.mocker, args: []any{ctx, req}}
+func (mg _ExampleService_ExampleStreamRequestResponseConfigurer) On(req any) _ExampleService_ExampleStreamRequestResponseResponseRecorder {
+	return _ExampleService_ExampleStreamRequestResponseResponseRecorder{mocker: mg.mocker, args: []any{req}}
 }
-func (mrr _ExampleService_ExampleStreamRequestResponseResponseRecorder) Return(res *ExampleMethodResponse, err error) *mocker.RegisteredCall {
-	return mrr.mocker.AddExpectedCallV2("ExampleStreamRequestResponse", mrr.args, []any{res, err})
+func (mrr _ExampleService_ExampleStreamRequestResponseResponseRecorder) Return(res []*ExampleMethodResponse, err error) *mocker.RegisteredCall {
+	anyRes := make([]any, len(res))
+	for i, v := range res {
+		anyRes[i] = v
+	}
+	return mrr.mocker.AddExpectedCallV2("ExampleStreamRequestResponse", mrr.args, []any{anyRes, err})
 }
 
 func (m *ExampleServiceMockServer) ExampleStreamRequestResponse(stream ExampleService_ExampleStreamRequestResponseServer) error {
@@ -279,8 +296,8 @@ func (m *ExampleServiceMockServer) ExampleStreamRequestResponse(stream ExampleSe
 		}
 
 		ret, err := m.mocker.Call("ExampleStreamRequestResponse", msg)
-		if err == nil && len(ret) != 1 {
-			err = fmt.Errorf("unexpected number of return values. Expected %d return values, got %d", 1, len(ret))
+		if err == nil && len(ret) != 2 {
+			err = fmt.Errorf("unexpected number of return values. Expected %d return values, got %d", 2, len(ret))
 		}
 
 		if err != nil {
@@ -291,8 +308,15 @@ func (m *ExampleServiceMockServer) ExampleStreamRequestResponse(stream ExampleSe
 			return status.Error(codes.Internal, err.Error())
 		}
 
-		for _, res := range ret {
-			if err := stream.Send(res.(*ExampleMethodResponse)); err != nil {
+		results, _ := ret[0].([]*ExampleMethodResponse)
+		err, _ = ret[1].(error)
+
+		if err != nil {
+			return err
+		}
+
+		for _, res := range results {
+			if err := stream.Send(res); err != nil {
 				return err
 			}
 		}

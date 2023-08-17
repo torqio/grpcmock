@@ -111,7 +111,7 @@ func TestGRPCMockStreamResponse(t *testing.T) {
 		_ = conn.Close()
 	})
 
-	testServer.Configure().ExampleStreamResponse().On(&ExampleMethodRequest{Req: "hi"}).Return([]*ExampleMethodResponse{{Res: "hi"}, {Res: "bi"}})
+	testServer.Configure().ExampleStreamResponse().On(&ExampleMethodRequest{Req: "hi"}).Return([]*ExampleMethodResponse{{Res: "hi"}, {Res: "bi"}}, nil)
 
 	stream, err := client.ExampleStreamResponse(context.Background(), &ExampleMethodRequest{Req: "hi"})
 	require.NoError(t, err)

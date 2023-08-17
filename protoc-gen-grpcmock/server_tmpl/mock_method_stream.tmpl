@@ -1,0 +1,48 @@
+{{- define "streamMethod"}}
+type _{{ .Service.GoName }}_{{ .Method.GoName }}Configurer struct {
+	mocker *mocker.Mocker
+}
+func (mr {{ .Service.GoName }}MockServerConfigurer) {{ .Method.GoName }}() _{{ .Service.GoName }}_{{ .Method.GoName }}Configurer {
+	return _{{ .Service.GoName }}_{{ .Method.GoName }}Configurer{mocker: mr.mocker}
+}
+
+func (mg _{{ .Service.GoName }}_{{ .Method.GoName }}Configurer) DefaultReturn(res *{{ qualifiedIdent .Method.Output.GoIdent }}, err error) {
+	mg.mocker.SetDefaultCall("{{ .Method.GoName }}", []any{res, err})
+}
+func (mg _{{ .Service.GoName }}_{{ .Method.GoName }}Configurer) DeleteDefault() {
+	mg.mocker.UnsetDefaultCall("{{ .Method.GoName }}")
+}
+func (mg _{{ .Service.GoName }}_{{ .Method.GoName }}Configurer) TimesCalled() int {
+	return mg.mocker.GetCallCount("{{ .Method.GoName }}")
+}
+func (mg _{{ .Service.GoName }}_{{ .Method.GoName }}Configurer) Reset() {
+	mg.mocker.ResetCall("{{ .Method.GoName }}")
+}
+
+type _{{ .Service.GoName }}_{{ .Method.GoName }}ResponseRecorder struct {
+	mocker *mocker.Mocker
+	args   []any
+}
+func (mg _{{ .Service.GoName }}_{{ .Method.GoName }}Configurer) On(ctx, req any) _{{ .Service.GoName }}_{{ .Method.GoName }}ResponseRecorder {
+	return _{{ .Service.GoName }}_{{ .Method.GoName }}ResponseRecorder{mocker: mg.mocker, args: []any{ctx, req}}
+}
+func (mrr _{{ .Service.GoName }}_{{ .Method.GoName }}ResponseRecorder) Return(res *{{ qualifiedIdent .Method.Output.GoIdent }}, err error) *mocker.RegisteredCall {
+	return mrr.mocker.AddExpectedCallV2("{{ .Method.GoName }}", mrr.args, []any{res, err})
+}
+
+func (m *{{ .Service.GoName }}MockServer) {{ .Method.GoName }}(ctx context.Context, req *{{ qualifiedIdent .Method.Input.GoIdent }}) (*{{ qualifiedIdent .Method.Output.GoIdent }}, error) {
+    ret, err := m.mocker.Call("{{ .Method.GoName }}", ctx, req)
+    if err == nil && len(ret) != 2 {
+        err = fmt.Errorf("unexpected number of return values. Expected %d return values, got %d", 2, len(ret))
+    }
+    if err != nil {
+        m.mocker.LogError(err)
+        return nil, status.Error(codes.Internal, err.Error())
+    }
+
+    res, _ := ret[0].(*{{ qualifiedIdent .Method.Output.GoIdent }})
+    err, _ = ret[1].(error)
+
+    return res, err
+}
+{{- end}}

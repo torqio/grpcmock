@@ -22,11 +22,11 @@ type Matcher interface {
 
 type Mocker struct {
 	callCount     map[string]int
-	expectedCalls map[string][]*singleExpectedCall
+	expectedCalls map[string][]*SingleExpectedCall
 
 	// default calls giving the option to supply a default return value for a method which will be returned
 	// in case no other calls in expectedCalls matched
-	defaultCalls map[string]*singleExpectedCall
+	defaultCalls map[string]*SingleExpectedCall
 
 	mu sync.RWMutex
 	t  *testing.T
@@ -35,8 +35,8 @@ type Mocker struct {
 func NewMocker() *Mocker {
 	return &Mocker{
 		callCount:     make(map[string]int),
-		expectedCalls: make(map[string][]*singleExpectedCall),
-		defaultCalls:  make(map[string]*singleExpectedCall),
+		expectedCalls: make(map[string][]*SingleExpectedCall),
+		defaultCalls:  make(map[string]*SingleExpectedCall),
 	}
 }
 
@@ -54,7 +54,7 @@ func (m *Mocker) LogError(err error) {
 	m.t.Errorf("grpcmock ERROR: %v", err)
 }
 
-func (m *Mocker) findMatchingCall(method string, args ...any) (*singleExpectedCall, error) {
+func (m *Mocker) findMatchingCall(method string, args ...any) (*SingleExpectedCall, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -129,12 +129,11 @@ func (m *Mocker) SetDefaultCall(method string, returns []any) {
 	defer m.mu.Unlock()
 
 	call := newSingleExpectedCall([]any{}, returns)
+	call.setDefault()
 	m.defaultCalls[method] = &call
 }
 
-// Call try to find a matching call for the given method with the given arguments.
-// It will return an array of the return values defined when you define the call with AddExpectedCall
-// If no call was found, an error will be returned.
+// Deprecated: For BC grpcmocks
 func (m *Mocker) Call(method string, args ...any) ([]any, error) {
 	matchedCall, err := m.findMatchingCall(method, args...)
 	if err != nil {
@@ -147,6 +146,24 @@ func (m *Mocker) Call(method string, args ...any) ([]any, error) {
 	matchedCall.call()
 
 	return matchedCall.returns, nil
+}
+
+// CallV2 try to find a matching call for the given method with the given arguments.
+// It will return a struct contains the expected call along with its return values and other information.
+// If no call was found, an error will be returned.
+func (m *Mocker) CallV2(method string, args ...any) (*SingleExpectedCall, error) {
+	m.mu.Lock()
+	m.callCount[method]++
+	m.mu.Unlock()
+
+	matchedCall, err := m.findMatchingCall(method, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	matchedCall.call()
+
+	return matchedCall, nil
 }
 
 // GetCallCount returns how many times a given method was called by the mock
@@ -162,8 +179,8 @@ func (m *Mocker) ResetAll() {
 	defer m.mu.Unlock()
 
 	m.callCount = make(map[string]int)
-	m.expectedCalls = make(map[string][]*singleExpectedCall)
-	m.defaultCalls = make(map[string]*singleExpectedCall)
+	m.expectedCalls = make(map[string][]*SingleExpectedCall)
+	m.defaultCalls = make(map[string]*SingleExpectedCall)
 }
 
 // ResetCall deletes all the expected call and the default call for a specific method
@@ -208,7 +225,7 @@ func (m *Mocker) DeleteCall(method, id string) {
 // (like Delete(), TimesCalled(), etc..)
 type RegisteredCall struct {
 	method string
-	call   *singleExpectedCall
+	call   *SingleExpectedCall
 	mocker *Mocker
 }
 
@@ -231,7 +248,7 @@ func (d *RegisteredCall) TimesCalled() int {
 // delete that specific added call.
 type DeletableCall struct {
 	method string
-	call   singleExpectedCall
+	call   SingleExpectedCall
 	mocker *Mocker
 }
 

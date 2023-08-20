@@ -17,9 +17,6 @@ import (
 //go:embed server_tmpl/mock_server.tmpl
 var MockServerTemplate string
 
-//go:embed server_tmpl/mock_method_unary.tmpl
-var MockServerUnaryMethodTemplate string
-
 //go:embed cmd_tmpl/server.tmpl
 var CmdServerTemplate string
 
@@ -178,7 +175,7 @@ func generateFile(plugin *protogen.Plugin, f *protogen.File) error {
 		"google.golang.org/grpc",
 		"google.golang.org/grpc/codes",
 		"google.golang.org/grpc/status",
-	}, filename, []string{MockServerTemplate, MockServerUnaryMethodTemplate}, f)
+	}, filename, []string{MockServerTemplate}, f)
 }
 
 func main() {

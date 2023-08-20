@@ -36,15 +36,16 @@ func (mrr _{{ .svc.GoName }}_{{ .method.GoName }}ResponseRecorder) Return(res []
 
 {{- define "unaryMethodRPCImpl" }}
 func (m *{{ .svc.GoName }}MockServer) {{ .method.GoName }}(ctx context.Context, req *{{ qualifiedIdent .method.Input.GoIdent }}) (*{{ qualifiedIdent .method.Output.GoIdent }}, error) {
-    ret, err := m.mocker.Call("{{ .method.GoName }}", ctx, req)
-    if err == nil && len(ret) != 2 {
-        err = fmt.Errorf("unexpected number of return values. Expected %d return values, got %d", 2, len(ret))
+    expectedCall, err := m.mocker.CallV2("{{ .method.GoName }}", ctx, req)
+    if err == nil && len(expectedCall.Returns()) != 2 {
+        err = fmt.Errorf("unexpected number of return values. Expected %d return values, got %d", 2, len(expectedCall.Returns()))
     }
     if err != nil {
         m.mocker.LogError(err)
         return nil, status.Error(codes.Internal, err.Error())
     }
 
+    ret := expectedCall.Returns()
     res, _ := ret[0].(*{{ qualifiedIdent .method.Output.GoIdent }})
     err, _ = ret[1].(error)
 
@@ -56,6 +57,9 @@ func (m *{{ .svc.GoName }}MockServer) {{ .method.GoName }}(ctx context.Context, 
 func (m *{{ .svc.GoName }}MockServer) {{ .method.GoName }}(stream {{ qualifiedIdentCustom .f.GoImportPath (printf "%s_%sServer" .svc.GoName .method.GoName) }}) error {
     {{- if (isStreamingServer .method) }}
     found := false
+
+    {{- else }}
+    var defaultReturn *mocker.SingleExpectedCall
 
     {{- end }}
     for {
@@ -69,9 +73,9 @@ func (m *{{ .svc.GoName }}MockServer) {{ .method.GoName }}(stream {{ qualifiedId
 			return status.Error(codes.Internal, err.Error())
 		}
 
-		ret, err := m.mocker.Call("{{ .method.GoName }}", msg)
-		if err == nil && len(ret) != 2 {
-			err = fmt.Errorf("unexpected number of return values. Expected %d return values, got %d", 2, len(ret))
+		expectedCall, err := m.mocker.CallV2("{{ .method.GoName }}", msg)
+		if err == nil && len(expectedCall.Returns()) != 2 {
+			err = fmt.Errorf("unexpected number of return values. Expected %d return values, got %d", 2, len(expectedCall.Returns()))
 		}
 
 		if err != nil {
@@ -82,6 +86,14 @@ func (m *{{ .svc.GoName }}MockServer) {{ .method.GoName }}(stream {{ qualifiedId
 			return status.Error(codes.Internal, err.Error())
 		}
 
+        {{- if not (isStreamingServer .method) }}
+		if expectedCall.IsDefault() {
+		    defaultReturn = expectedCall
+            continue
+		}
+		{{- end }}
+
+        ret := expectedCall.Returns()
 		{{- if not (isStreamingServer .method) }}
         res, _ := ret[0].(*{{ qualifiedIdent .method.Output.GoIdent }})
         err, _ = ret[1].(error)
@@ -109,6 +121,17 @@ func (m *{{ .svc.GoName }}MockServer) {{ .method.GoName }}(stream {{ qualifiedId
 	}
 
     {{- if not (isStreamingServer .method) }}
+    if defaultReturn != nil {
+        ret := defaultReturn.Returns()
+        res, _ := ret[0].(*{{ qualifiedIdent .method.Output.GoIdent }})
+        err, _ := ret[1].(error)
+
+        if err != nil {
+            return err
+        }
+
+        return stream.SendAndClose(res)
+    }
 	err := mocker.ErrNoMatchingCalls{"{{ .method.GoName }}"}
 	m.mocker.LogError(err)
 	return status.Error(codes.NotFound, err.Error())
@@ -125,15 +148,16 @@ func (m *{{ .svc.GoName }}MockServer) {{ .method.GoName }}(stream {{ qualifiedId
 
 {{- define "streamServerMethodRPCImpl" }}
 func (m *{{ .svc.GoName }}MockServer) {{ .method.GoName }}(req *{{ qualifiedIdent .method.Input.GoIdent }}, stream {{ qualifiedIdentCustom .f.GoImportPath (printf "%s_%sServer" .svc.GoName .method.GoName) }}) error {
-	ret, err := m.mocker.Call("{{ .method.GoName }}", req)
-	if err == nil && len(ret) != 2 {
-		err = fmt.Errorf("unexpected number of return values. Expected %d return values to stream, got %d", 2, len(ret))
+	expectedCall, err := m.mocker.CallV2("{{ .method.GoName }}", req)
+	if err == nil && len(expectedCall.Returns()) != 2 {
+		err = fmt.Errorf("unexpected number of return values. Expected %d return values to stream, got %d", 2, len(expectedCall.Returns()))
 	}
 	if err != nil {
 		m.mocker.LogError(err)
 		return status.Error(codes.Internal, err.Error())
 	}
 
+    ret := expectedCall.Returns()
 	results, _ := ret[0].([]*{{ qualifiedIdent .method.Output.GoIdent }})
 	err, _ = ret[1].(error)
 

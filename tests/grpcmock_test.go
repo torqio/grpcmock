@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -37,7 +38,8 @@ func (e exampleReqMatcher) Matches(x any) bool {
 
 func TestGRPCMock(t *testing.T) {
 	ctx := context.Background()
-	testServer := NewExampleServiceMockServerT(t)
+	testServer, err := NewExampleServiceMockServer()
+	require.NoError(t, err)
 	srv := grpctest.NewTestServer(ctx, t, testServer, grpctest.WithoutMiddlewares())
 
 	conn, err := grpc.Dial(srv.Addr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -94,12 +96,22 @@ func TestGRPCMock(t *testing.T) {
 			})
 		}
 	}
-	assert.Equal(t, int(totalExpectedCalls), testServer.Configure().ExampleMethod().TimesCalled())
+
+	t.Cleanup(func() {
+		assert.Equal(t, int(totalExpectedCalls), testServer.Configure().ExampleMethod().TimesCalled())
+
+		// Remove all and call again, expect error
+		testServer.Configure().ExampleMethod().Reset()
+		_, err = client.ExampleMethod(ctx, &ExampleMethodRequest{Req: uuid.NewString()})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no matching expected call nor default return for method ExampleMethod with given arguments")
+	})
 }
 
 func TestGRPCMockStreamResponse(t *testing.T) {
 	ctx := context.Background()
-	testServer := NewExampleServiceMockServerT(t)
+	testServer, err := NewExampleServiceMockServer()
+	require.NoError(t, err)
 	srv := grpctest.NewTestServer(ctx, t, testServer, grpctest.WithoutMiddlewares())
 
 	conn, err := grpc.Dial(srv.Addr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -179,5 +191,234 @@ func TestGRPCMockStreamResponse(t *testing.T) {
 			})
 		}
 	}
-	assert.Equal(t, int(totalExpectedCalls), testServer.Configure().ExampleStreamResponse().TimesCalled())
+	t.Cleanup(func() {
+		assert.Equal(t, int(totalExpectedCalls), testServer.Configure().ExampleStreamResponse().TimesCalled())
+
+		// Remove all and call again, expect error
+		testServer.Configure().ExampleStreamResponse().Reset()
+		stream, err := client.ExampleStreamResponse(context.Background(), &ExampleMethodRequest{Req: uuid.NewString()})
+		require.NoError(t, err)
+		for {
+			_, err = stream.Recv()
+			if err != nil {
+				break
+			}
+		}
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no matching expected call nor default return for method ExampleStreamResponse with given arguments")
+	})
+}
+
+func TestGRPCMockStreamRequest(t *testing.T) {
+	ctx := context.Background()
+	testServer, err := NewExampleServiceMockServer()
+	require.NoError(t, err)
+	srv := grpctest.NewTestServer(ctx, t, testServer, grpctest.WithoutMiddlewares())
+
+	conn, err := grpc.Dial(srv.Addr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+
+	client := NewExampleServiceClient(conn)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	defaultRes := "default"
+	testServer.Configure().ExampleStreamRequest().DefaultReturn(&ExampleMethodResponse{Res: defaultRes}, nil)
+
+	totalExpectedCalls := int32(0)
+
+	tests := []struct {
+		name           string
+		reqStreamCount int
+		matchOnReq     int
+		callCount      int
+	}{
+		{
+			name:           "single call",
+			reqStreamCount: 2,
+			matchOnReq:     0,
+			callCount:      1,
+		},
+		{
+			name:           "multiple calls",
+			reqStreamCount: 10,
+			matchOnReq:     5,
+			callCount:      10,
+		},
+	}
+	for _, tc := range tests {
+		tc := tc
+		// Running the tests multiple times in parallel to make sure they work in parallel
+		for i := 0; i < 50; i++ {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				currentReq := uuid.NewString()
+
+				reqStream := make([]*ExampleMethodRequest, 0, tc.reqStreamCount)
+				for i := 0; i < tc.reqStreamCount; i++ {
+					reqStream = append(reqStream, &ExampleMethodRequest{Req: currentReq + "_" + strconv.Itoa(i)})
+				}
+				call := testServer.Configure().ExampleStreamRequest().On(&ExampleMethodRequest{Req: currentReq + "_" + strconv.Itoa(tc.matchOnReq)}).Return(&ExampleMethodResponse{Res: currentReq}, nil)
+
+				for i := 0; i < tc.callCount; i++ {
+					stream, err := client.ExampleStreamRequest(context.Background())
+					require.NoError(t, err)
+
+					for _, req := range reqStream {
+						err := stream.Send(req)
+						require.NoError(t, err)
+					}
+					res, err := stream.CloseAndRecv()
+					require.NoError(t, err)
+					assert.Equal(t, currentReq, res.GetRes())
+				}
+
+				assert.Equal(t, tc.callCount, call.TimesCalled())
+
+				call.Delete()
+
+				stream, err := client.ExampleStreamRequest(context.Background())
+				require.NoError(t, err)
+				for _, req := range reqStream {
+					err := stream.Send(req)
+					require.NoError(t, err)
+				}
+				res, err := stream.CloseAndRecv()
+				require.NoError(t, err)
+				assert.Equal(t, defaultRes, res.GetRes())
+
+				// The expected calls are the amount of calls for the streaming request * the expected match request on the stream
+				// (because after a successful matching, the receiving on the server will end) + the amount of streaming messages
+				// because we call it again with expecting the default, and the default will receive all the messages before returning the default.
+				expectedCallCount := tc.callCount*(tc.matchOnReq+1) + tc.reqStreamCount
+				atomic.AddInt32(&totalExpectedCalls, int32(expectedCallCount))
+			})
+		}
+	}
+	t.Cleanup(func() {
+		assert.Equal(t, int(totalExpectedCalls), testServer.Configure().ExampleStreamRequest().TimesCalled())
+
+		// Remove all and call again, expect error
+		testServer.Configure().ExampleStreamRequest().Reset()
+		stream, err := client.ExampleStreamRequest(context.Background())
+		require.NoError(t, err)
+		err = stream.Send(&ExampleMethodRequest{Req: uuid.NewString()})
+		require.NoError(t, err)
+		_, err = stream.CloseAndRecv()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no matching expected call nor default return for method ExampleStreamRequest with given arguments")
+	})
+}
+
+func TestGRPCMockStreamRequestResponse(t *testing.T) {
+	ctx := context.Background()
+	testServer, err := NewExampleServiceMockServer()
+	require.NoError(t, err)
+	srv := grpctest.NewTestServer(ctx, t, testServer, grpctest.WithoutMiddlewares())
+
+	conn, err := grpc.Dial(srv.Addr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+
+	client := NewExampleServiceClient(conn)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	defaultStreamRes := []*ExampleMethodResponse{{Res: "default"}}
+	testServer.Configure().ExampleStreamRequestResponse().DefaultReturn(defaultStreamRes, nil)
+
+	totalExpectedCalls := int32(0)
+
+	tests := []struct {
+		name           string
+		reqStreamCount int
+		matchOnReq     int
+		retStreamCount int
+		callCount      int
+	}{
+		{
+			name:           "single call",
+			reqStreamCount: 2,
+			matchOnReq:     0,
+			retStreamCount: 2,
+			callCount:      1,
+		},
+		{
+			name:           "multiple calls",
+			reqStreamCount: 10,
+			matchOnReq:     5,
+			retStreamCount: 10,
+			callCount:      10,
+		},
+	}
+	for _, tc := range tests {
+		tc := tc
+		// Running the tests multiple times in parallel to make sure they work in parallel
+		for i := 0; i < 50; i++ {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				currentReq := uuid.NewString()
+
+				reqStream := make([]*ExampleMethodRequest, 0, tc.reqStreamCount)
+				for i := 0; i < tc.reqStreamCount; i++ {
+					reqStream = append(reqStream, &ExampleMethodRequest{Req: currentReq + "_" + strconv.Itoa(i)})
+				}
+				retStream := make([]*ExampleMethodResponse, 0, tc.retStreamCount)
+				for i := 0; i < tc.retStreamCount; i++ {
+					retStream = append(retStream, &ExampleMethodResponse{Res: currentReq + "_" + strconv.Itoa(i)})
+				}
+				call := testServer.Configure().ExampleStreamRequestResponse().On(&ExampleMethodRequest{Req: currentReq + "_" + strconv.Itoa(tc.matchOnReq)}).Return(retStream, nil)
+
+				for i := 0; i < tc.callCount; i++ {
+					stream, err := client.ExampleStreamRequestResponse(context.Background())
+					require.NoError(t, err)
+
+					for j, req := range reqStream {
+						err := stream.Send(req)
+						require.NoError(t, err)
+
+						expctedRetStream := defaultStreamRes
+						if j == tc.matchOnReq {
+							expctedRetStream = retStream
+						}
+						for _, expectedRes := range expctedRetStream {
+							res, err := stream.Recv()
+							require.NoError(t, err)
+							assert.Equal(t, expectedRes.GetRes(), res.GetRes())
+						}
+					}
+					err = stream.CloseSend()
+					time.Sleep(10 * time.Millisecond) // Allow the server to receive and send the EOF
+					require.NoError(t, err)
+					_, err = stream.Recv()
+					require.Error(t, err)
+					assert.True(t, errors.Is(err, io.EOF))
+				}
+
+				assert.Equal(t, tc.callCount, call.TimesCalled())
+
+				call.Delete()
+
+				expectedCallCount := tc.callCount * tc.reqStreamCount
+				atomic.AddInt32(&totalExpectedCalls, int32(expectedCallCount))
+
+			})
+		}
+	}
+	t.Cleanup(func() {
+		assert.Equal(t, int(totalExpectedCalls), testServer.Configure().ExampleStreamRequestResponse().TimesCalled())
+
+		// Remove all and call again, expect error
+		testServer.Configure().ExampleStreamRequestResponse().Reset()
+		stream, err := client.ExampleStreamRequestResponse(context.Background())
+		require.NoError(t, err)
+		err = stream.Send(&ExampleMethodRequest{Req: uuid.NewString()})
+		require.NoError(t, err)
+		_, err = stream.Recv()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no matching expected call nor default return for method ExampleStreamRequestResponse with given arguments")
+	})
 }

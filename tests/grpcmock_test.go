@@ -108,6 +108,10 @@ func TestGRPCMock(t *testing.T) {
 	})
 }
 
+// Testing the case where the server is sending a stream of responses and the client is sending a single request.
+// The test is checking that the server is returning the expected responses stream for each request is receives.
+// If there is no expected request matched, the server will return the default responses stream.
+// If there is no default responses stream, the server will return an error.
 func TestGRPCMockStreamResponse(t *testing.T) {
 	ctx := context.Background()
 	testServer, err := NewExampleServiceMockServer()
@@ -209,6 +213,10 @@ func TestGRPCMockStreamResponse(t *testing.T) {
 	})
 }
 
+// Testing the case where the client is sending a stream of requests and the server is sending a single response.
+// The test is checking that, given a stream of requests, the server is returning the expected response if it gets an expected request as part of the requests stream.
+// If there is no expected request matched, the server will return the default response.
+// If there is no default response, the server will return an error.
 func TestGRPCMockStreamRequest(t *testing.T) {
 	ctx := context.Background()
 	testServer, err := NewExampleServiceMockServer()
@@ -312,6 +320,10 @@ func TestGRPCMockStreamRequest(t *testing.T) {
 	})
 }
 
+// Testing the case where the server is sending a stream of responses and the client is sending a stream of requests.
+// The test is checking that the server is returning the expected responses stream for each request is receives in the stream.
+// If there is no expected request matched for a given request in the stream, the server will return the default responses stream.
+// If there is no default responses stream and there was no a single match in the whole stream of requests, the server will return an error.
 func TestGRPCMockStreamRequestResponse(t *testing.T) {
 	ctx := context.Background()
 	testServer, err := NewExampleServiceMockServer()
@@ -377,6 +389,7 @@ func TestGRPCMockStreamRequestResponse(t *testing.T) {
 					require.NoError(t, err)
 
 					for j, req := range reqStream {
+						// For each request, we expect a stream of responses (either the retStream or the default, only one of the requests should match the retStream, the rest will return the default)
 						err := stream.Send(req)
 						require.NoError(t, err)
 

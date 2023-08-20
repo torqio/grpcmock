@@ -36,7 +36,7 @@ func (e exampleReqMatcher) Matches(x any) bool {
 	return req.Req == e.req
 }
 
-func TestGRPCMock(t *testing.T) {
+func TestGRPCMockUnary(t *testing.T) {
 	ctx := context.Background()
 	testServer, err := NewExampleServiceMockServer()
 	require.NoError(t, err)

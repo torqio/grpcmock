@@ -154,16 +154,6 @@ func generateCmds(plugin *protogen.Plugin, cmdsPath string) error {
 }
 
 func generateFile(plugin *protogen.Plugin, f *protogen.File) error {
-	//for _, service := range f.Services {
-	//	os.Stderr.WriteString(fmt.Sprintf("Generating mock server for service %q\n", service.Desc.FullName()))
-	//	for _, method := range service.Methods {
-	//		os.Stderr.WriteString(fmt.Sprintf("  %s\n", method.Desc.FullName()))
-	//		os.Stderr.WriteString(fmt.Sprintf("  input: %#v\n", method.Input))
-	//		os.Stderr.WriteString(fmt.Sprintf("  output: %#v\n", method.Input))
-	//		os.Stderr.WriteString(fmt.Sprintf("  method: %#v\n", method))
-	//		os.Stderr.WriteString("========================================\n")
-	//	}
-	//}
 	filename := f.GeneratedFilenamePrefix + "_grpcmock.pb.go"
 	return generateFileAndExecuteTemplate(plugin, f.GoImportPath, []string{
 		"context",

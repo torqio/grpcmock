@@ -33,7 +33,7 @@ func log(msg string, args ...interface{}) {
 	os.Stderr.WriteString(fmt.Sprintf(msg+"\n", args...))
 }
 
-func generateFileAndExecuteTemplate(plugin *protogen.Plugin, goImportPath protogen.GoImportPath, manualImports []string, filename string, tmplText string, templateData any) error {
+func generateFileAndExecuteTemplate(plugin *protogen.Plugin, goImportPath protogen.GoImportPath, manualImports []string, filename string, templates []string, templateData any) error {
 	generatedFile := plugin.NewGeneratedFile(filename, goImportPath)
 	// Adding qualifiedIdent function to the template. This will allow using an imported message in case the input/output
 	// is from another proto message packcage
@@ -47,17 +47,43 @@ func generateFileAndExecuteTemplate(plugin *protogen.Plugin, goImportPath protog
 		}
 		return generatedFile.QualifiedGoIdent(goIdent)
 	}
+	isStreamingClient := func(method *protogen.Method) bool {
+		return method.Desc.IsStreamingClient()
+	}
+	isStreamingServer := func(method *protogen.Method) bool {
+		return method.Desc.IsStreamingServer()
+	}
+	isStreaming := func(method *protogen.Method) bool {
+		return isStreamingClient(method) || isStreamingServer(method)
+	}
 
 	for _, manualImport := range manualImports {
 		// This will make protogen to import this package (without '_' prefix)
 		qualifiedIdentCustom(protogen.GoImportPath(manualImport), "")
 	}
 
-	tmpl := template.Must(template.New(filename).Funcs(template.FuncMap{
+	funcs := template.FuncMap{
 		"qualifiedIdent":       qualifiedIdent,
 		"qualifiedIdentCustom": qualifiedIdentCustom,
-	}).Funcs(sprig.TxtFuncMap()).Option("missingkey=error").Parse(tmplText))
-	if err := tmpl.Execute(generatedFile, templateData); err != nil {
+		"isStreamingClient":    isStreamingClient,
+		"isStreamingServer":    isStreamingServer,
+		"isStreaming":          isStreaming,
+	}
+
+	var finalTemplate *template.Template
+	var err error
+	baseTemplate := template.New(filename).Funcs(funcs).Funcs(sprig.TxtFuncMap()).Option("missingkey=error")
+	for _, tmplText := range templates {
+		if finalTemplate != nil {
+			finalTemplate, err = finalTemplate.Parse(tmplText)
+		} else {
+			finalTemplate, err = baseTemplate.Parse(tmplText)
+		}
+		if err != nil {
+			return fmt.Errorf("parse template: %w", err)
+		}
+	}
+	if err := finalTemplate.Execute(generatedFile, templateData); err != nil {
 		return fmt.Errorf("execute template: %w", err)
 	}
 	return nil
@@ -95,7 +121,7 @@ func generateCmds(plugin *protogen.Plugin, cmdsPath string) error {
 	}
 	cmdsDirectory := path.Join(basePath, "grpcmock_cmds")
 
-	if err = generateFileAndExecuteTemplate(plugin, "", nil, path.Join(cmdsDirectory, "server.mockpb.go"), CmdServerTemplate, plugin); err != nil {
+	if err = generateFileAndExecuteTemplate(plugin, "", nil, path.Join(cmdsDirectory, "server.mockpb.go"), []string{CmdServerTemplate}, plugin); err != nil {
 		return fmt.Errorf("generate cmd server: %w", err)
 	}
 
@@ -111,16 +137,16 @@ func generateCmds(plugin *protogen.Plugin, cmdsPath string) error {
 		if err = generateFileAndExecuteTemplate(plugin, "", []string{
 			"fmt",
 			"google.golang.org/grpc",
-		}, path.Join(cmdsDirectory, baseName), RegistryTemplate, f); err != nil {
+		}, path.Join(cmdsDirectory, baseName), []string{RegistryTemplate}, f); err != nil {
 			return fmt.Errorf("create registry for %q: %w", baseName, err)
 		}
 	}
 
-	if err = generateFileAndExecuteTemplate(plugin, "", nil, path.Join(cmdsDirectory, "Dockerfile"), CmdDockerfileTemplate, plugin); err != nil {
+	if err = generateFileAndExecuteTemplate(plugin, "", nil, path.Join(cmdsDirectory, "Dockerfile"), []string{CmdDockerfileTemplate}, plugin); err != nil {
 		return fmt.Errorf("generate cmd Dockerfile: %w", err)
 	}
 
-	if err = generateFileAndExecuteTemplate(plugin, "", nil, path.Join(cmdsDirectory, "Makefile"), CmdMakefileTemplate, plugin); err != nil {
+	if err = generateFileAndExecuteTemplate(plugin, "", nil, path.Join(cmdsDirectory, "Makefile"), []string{CmdMakefileTemplate}, plugin); err != nil {
 		return fmt.Errorf("generate cmd Makefile: %w", err)
 	}
 
@@ -133,11 +159,13 @@ func generateFile(plugin *protogen.Plugin, f *protogen.File) error {
 		"context",
 		"fmt",
 		"testing",
+		"errors",
+		"io",
 		"github.com/torqio/grpcmock/pkg/mocker",
 		"google.golang.org/grpc",
 		"google.golang.org/grpc/codes",
 		"google.golang.org/grpc/status",
-	}, filename, MockServerTemplate, f)
+	}, filename, []string{MockServerTemplate}, f)
 }
 
 func main() {

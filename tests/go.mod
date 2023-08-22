@@ -7,7 +7,7 @@ require (
 	github.com/stretchr/testify v1.8.1
 	github.com/torqio/grpcmock v0.0.0
 	google.golang.org/grpc v1.54.0
-	google.golang.org/protobuf v1.28.1
+	google.golang.org/protobuf v1.30.0
 	gotest.tools v2.2.0+incompatible
 	stackpulse.dev v0.0.0-20230323122755-5b3145270237
 )

@@ -1,10 +1,10 @@
 version: v1
 plugins:
-  - remote: buf.build/library/plugins/go
+  - plugin: buf.build/protocolbuffers/go
     out: .
     opt:
       - paths=source_relative
-  - remote: buf.build/library/plugins/go-grpc
+  - plugin: buf.build/grpc/go
     out: .
     opt:
       - paths=source_relative

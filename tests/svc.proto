@@ -4,6 +4,9 @@ option go_package = "github.com/torqio/grpcmock/tests";
 
 service ExampleService {
   rpc ExampleMethod(ExampleMethodRequest) returns (ExampleMethodResponse);
+  rpc ExampleStreamResponse(ExampleMethodRequest) returns (stream ExampleMethodResponse);
+  rpc ExampleStreamRequest(stream ExampleMethodRequest) returns (ExampleMethodResponse);
+  rpc ExampleStreamRequestResponse(stream ExampleMethodRequest) returns (stream ExampleMethodResponse);
 }
 
 message ExampleMethodRequest {

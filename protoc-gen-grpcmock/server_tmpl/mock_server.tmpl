@@ -187,6 +187,10 @@ func (m *{{ .svc.GoName }}MockServer) {{ .method.GoName }}(req *{{ qualifiedIden
 
 package {{ .GoPackageName }}
 
+// To avoid unused imports in non streaming gRPC services
+var _ = errors.Is
+var _ = io.EOF
+
 {{- $f := . }}
 {{ range $svc := .Services }}
 type {{ $svc.GoName }}MockServer struct {

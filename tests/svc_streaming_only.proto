@@ -1,0 +1,17 @@
+// We are not running tests on this file, this is just to make sure everything is compiling correctly
+syntax = "proto3";
+package grpcmock.example;
+option go_package = "github.com/torqio/grpcmock/tests";
+
+service StreamOnlySvc {
+  rpc StreamResponse(Req) returns (stream Res);
+  rpc StreamRequest(stream Req) returns (Res);
+  rpc StreamRequestResponse(stream Req) returns (stream Res);
+}
+
+message Req {
+  string req = 1;
+}
+message Res {
+  string res = 1;
+}

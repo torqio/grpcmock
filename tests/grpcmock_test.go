@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -15,7 +16,6 @@ import (
 	"github.com/torqio/grpcmock/pkg/mocker"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"stackpulse.dev/testing/grpctest"
 )
 
 // Those tests won't compile unless you run `make test`. This is because they need the test proto to be compiled
@@ -23,26 +23,32 @@ import (
 // The reason we are not pre-compile and push it as part of the repo is that we want a fresh compilation of the proto
 // as part of the test, because it tests the plugin code generation (which generated as part of the proto compilation).
 
-type exampleReqMatcher struct {
-	req string
-}
+func startGrpcServer(t *testing.T, testServer *ExampleServiceMockServer) string {
+	lis, err := net.Listen("tcp", ":0")
+	srv := grpc.NewServer()
+	t.Cleanup(func() {
+		srv.Stop()
+		lis.Close()
+	})
 
-func (e exampleReqMatcher) Matches(x any) bool {
-	req, ok := x.(*ExampleMethodRequest)
-	if !ok {
-		return false
-	}
+	go func() {
+		require.NoError(t, err)
+		RegisterExampleServiceServer(srv, testServer)
+		require.NoError(t, srv.Serve(lis))
+	}()
 
-	return req.Req == e.req
+	return lis.Addr().String()
 }
 
 func TestGRPCMockUnary(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	testServer, err := NewExampleServiceMockServer()
 	require.NoError(t, err)
-	srv := grpctest.NewTestServer(ctx, t, testServer, grpctest.WithoutMiddlewares())
+	addr := startGrpcServer(t, testServer)
 
-	conn, err := grpc.Dial(srv.Addr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 
 	client := NewExampleServiceClient(conn)
@@ -76,7 +82,7 @@ func TestGRPCMockUnary(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				currentReq := uuid.NewString()
-				call := testServer.Configure().ExampleMethod().On(mocker.Any(), exampleReqMatcher{req: currentReq}).Return(&ExampleMethodResponse{Res: currentReq}, nil)
+				call := testServer.Configure().ExampleMethod().On(mocker.Any(), &ExampleMethodRequest{Req: currentReq}).Return(&ExampleMethodResponse{Res: currentReq}, nil)
 
 				for i := 0; i < tc.callCount; i++ {
 					res, err := client.ExampleMethod(ctx, &ExampleMethodRequest{Req: currentReq})
@@ -113,12 +119,13 @@ func TestGRPCMockUnary(t *testing.T) {
 // If there is no expected request matched, the server will return the default responses stream.
 // If there is no default responses stream, the server will return an error.
 func TestGRPCMockStreamResponse(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
+
 	testServer, err := NewExampleServiceMockServer()
 	require.NoError(t, err)
-	srv := grpctest.NewTestServer(ctx, t, testServer, grpctest.WithoutMiddlewares())
+	addr := startGrpcServer(t, testServer)
 
-	conn, err := grpc.Dial(srv.Addr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 
 	client := NewExampleServiceClient(conn)
@@ -218,12 +225,13 @@ func TestGRPCMockStreamResponse(t *testing.T) {
 // If there is no expected request matched, the server will return the default response.
 // If there is no default response, the server will return an error.
 func TestGRPCMockStreamRequest(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
+
 	testServer, err := NewExampleServiceMockServer()
 	require.NoError(t, err)
-	srv := grpctest.NewTestServer(ctx, t, testServer, grpctest.WithoutMiddlewares())
+	addr := startGrpcServer(t, testServer)
 
-	conn, err := grpc.Dial(srv.Addr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 
 	client := NewExampleServiceClient(conn)
@@ -325,12 +333,13 @@ func TestGRPCMockStreamRequest(t *testing.T) {
 // If there is no expected request matched for a given request in the stream, the server will return the default responses stream.
 // If there is no default responses stream and there was no a single match in the whole stream of requests, the server will return an error.
 func TestGRPCMockStreamRequestResponse(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
+
 	testServer, err := NewExampleServiceMockServer()
 	require.NoError(t, err)
-	srv := grpctest.NewTestServer(ctx, t, testServer, grpctest.WithoutMiddlewares())
+	addr := startGrpcServer(t, testServer)
 
-	conn, err := grpc.Dial(srv.Addr(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 
 	client := NewExampleServiceClient(conn)

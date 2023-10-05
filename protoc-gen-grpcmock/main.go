@@ -170,7 +170,7 @@ func generateFile(plugin *protogen.Plugin, f *protogen.File) error {
 
 func main() {
 	var flags flag.FlagSet
-	shouldGenerateCmds := flags.Bool("generate-cmds", false, "Generate cmds main packages for mocked services")
+	shouldGenerateCmds := flags.Bool("generate-cmds", false, "[Currently not in use] Generate cmds main packages for mocked services")
 	cmdsPath := flags.String("cmds-path", "", "Path to generate to cmds for the mocked services")
 	generated := false
 

@@ -1,0 +1,7 @@
+// We are not running tests on this file, this is just to make sure everything is compiling correctly
+syntax = "proto3";
+package grpcmock.example;
+option go_package = "github.com/torqio/grpcmock/tests";
+
+service EmptyService {
+}

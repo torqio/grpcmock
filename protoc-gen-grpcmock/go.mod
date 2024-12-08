@@ -1,10 +1,10 @@
 module github.com/torqio/grpcmock/protoc-gen-grpcmock
 
-go 1.19
+go 1.22
 
 require (
 	github.com/pschlump/sprig v2.15.0+incompatible
-	google.golang.org/protobuf v1.28.0
+	google.golang.org/protobuf v1.35.2
 )
 
 require (

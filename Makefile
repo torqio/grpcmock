@@ -5,6 +5,6 @@ test:
 	@echo "-> Compiling protoc plugin"
 	@cd ./protoc-gen-grpcmock && go build -o ../${TEST_PLUGIN_FILE} .
 	@echo "-> Compiling test protos"
-	@cd ${TEST_PROTOS_DIR} && PATH=$(abspath ${TEST_PROTOS_DIR}):${PATH} buf generate
+	@cd ${TEST_PROTOS_DIR} && PATH="$(abspath ${TEST_PROTOS_DIR}):${PATH}" buf generate
 	@echo "-> Running plugin tests"
 	@cd ${TEST_PROTOS_DIR} && gotestsum --format testname

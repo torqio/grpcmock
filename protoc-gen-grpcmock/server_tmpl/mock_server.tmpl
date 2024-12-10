@@ -73,7 +73,7 @@ func (m *{{ .svc.GoName }}MockServer) {{ .method.GoName }}(stream {{ qualifiedId
 			return status.Error(codes.Internal, err.Error())
 		}
 
-		expectedCall, err := m.mocker.CallV2("{{ .method.GoName }}", msg)
+		expectedCall, err := m.mocker.CallV2("{{ .method.GoName }}", msg, stream)
 		if err == nil && len(expectedCall.Returns()) != 2 {
 			err = fmt.Errorf("unexpected number of return values. Expected %d return values, got %d", 2, len(expectedCall.Returns()))
 		}

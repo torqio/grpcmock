@@ -279,8 +279,7 @@ func TestGRPCMockStreamRequest(t *testing.T) {
 					reqStream = append(reqStream, &ExampleMethodRequest{Req: currentReq + "_" + strconv.Itoa(i)})
 				}
 				call := testServer.Configure().ExampleStreamRequest().
-					On(&ExampleMethodRequest{Req: currentReq + "_" + strconv.Itoa(tc.matchOnReq)},
-						mocker.Any()).
+					On(&ExampleMethodRequest{Req: currentReq + "_" + strconv.Itoa(tc.matchOnReq)}, mocker.Any()).
 					Return(&ExampleMethodResponse{Res: currentReq}, nil)
 
 				for i := 0; i < tc.callCount; i++ {
@@ -399,8 +398,7 @@ func TestGRPCMockStreamRequestResponse(t *testing.T) {
 				ctxKey := uuid.NewString()
 				ctx := context.WithValue(context.Background(), "key", ctxKey)
 				call := testServer.Configure().ExampleStreamRequestResponse().On(
-					&ExampleMethodRequest{Req: currentReq + "_" + strconv.Itoa(tc.matchOnReq)},
-					mocker.Any()).
+					&ExampleMethodRequest{Req: currentReq + "_" + strconv.Itoa(tc.matchOnReq)}, mocker.Any()).
 					Return(retStream, nil)
 
 				for i := 0; i < tc.callCount; i++ {

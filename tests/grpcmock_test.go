@@ -268,7 +268,7 @@ func TestGRPCMockStreamRequest(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		// Running the tests multiple times in parallel to make sure they work in parallel
-		for i := 0; i < 1; i++ {
+		for i := 0; i < 50; i++ {
 			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()

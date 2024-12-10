@@ -3,6 +3,7 @@ module github.com/torqio/grpcmock/tests
 go 1.22
 
 require (
+	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.8.4
 	github.com/torqio/grpcmock v0.0.0

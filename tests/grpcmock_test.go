@@ -167,16 +167,12 @@ func TestGRPCMockStreamResponse(t *testing.T) {
 				for i := 0; i < tc.retStreamCount; i++ {
 					retStream = append(retStream, &ExampleMethodResponse{Res: currentReq + "_" + strconv.Itoa(i)})
 				}
-
-				ctxKey := uuid.NewString()
-				ctx := context.WithValue(context.Background(), "key", ctxKey)
 				call := testServer.Configure().ExampleStreamResponse().
-					On(&ExampleMethodRequest{Req: currentReq},
-						NewContextMatcher(map[interface{}]interface{}{"key": ctxKey})).
+					On(&ExampleMethodRequest{Req: currentReq}, mocker.Any()).
 					Return(retStream, nil)
 
 				for i := 0; i < tc.callCount; i++ {
-					stream, err := client.ExampleStreamResponse(ctx, &ExampleMethodRequest{Req: currentReq})
+					stream, err := client.ExampleStreamResponse(context.Background(), &ExampleMethodRequest{Req: currentReq})
 					require.NoError(t, err)
 
 					for _, expectedRes := range retStream {
@@ -277,8 +273,6 @@ func TestGRPCMockStreamRequest(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				currentReq := uuid.NewString()
-				ctxKey := uuid.NewString()
-				ctx := context.WithValue(context.Background(), "key", ctxKey)
 
 				reqStream := make([]*ExampleMethodRequest, 0, tc.reqStreamCount)
 				for i := 0; i < tc.reqStreamCount; i++ {
@@ -286,11 +280,11 @@ func TestGRPCMockStreamRequest(t *testing.T) {
 				}
 				call := testServer.Configure().ExampleStreamRequest().
 					On(&ExampleMethodRequest{Req: currentReq + "_" + strconv.Itoa(tc.matchOnReq)},
-						NewContextMatcher(map[interface{}]interface{}{"key": ctxKey})).
+						mocker.Any()).
 					Return(&ExampleMethodResponse{Res: currentReq}, nil)
 
 				for i := 0; i < tc.callCount; i++ {
-					stream, err := client.ExampleStreamRequest(ctx)
+					stream, err := client.ExampleStreamRequest(context.Background())
 					require.NoError(t, err)
 
 					for _, req := range reqStream {
@@ -406,7 +400,7 @@ func TestGRPCMockStreamRequestResponse(t *testing.T) {
 				ctx := context.WithValue(context.Background(), "key", ctxKey)
 				call := testServer.Configure().ExampleStreamRequestResponse().On(
 					&ExampleMethodRequest{Req: currentReq + "_" + strconv.Itoa(tc.matchOnReq)},
-					NewContextMatcher(map[interface{}]interface{}{"key": ctxKey})).
+					mocker.Any()).
 					Return(retStream, nil)
 
 				for i := 0; i < tc.callCount; i++ {

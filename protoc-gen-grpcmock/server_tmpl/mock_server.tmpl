@@ -17,8 +17,8 @@ func (mg _{{ .svc.GoName }}_{{ .method.GoName }}Configurer) On(ctx, req any) _{{
 {{- end }}
 
 {{- define "streamMethodOn" }}
-func (mg _{{ .svc.GoName }}_{{ .method.GoName }}Configurer) On(req any) _{{ .svc.GoName }}_{{ .method.GoName }}ResponseRecorder {
-    return _{{ .svc.GoName }}_{{ .method.GoName }}ResponseRecorder{mocker: mg.mocker, args: []any{req}}
+func (mg _{{ .svc.GoName }}_{{ .method.GoName }}Configurer) On(req, ctx any) _{{ .svc.GoName }}_{{ .method.GoName }}ResponseRecorder {
+    return _{{ .svc.GoName }}_{{ .method.GoName }}ResponseRecorder{mocker: mg.mocker, args: []any{req, ctx}}
 }
 {{- end }}
 
@@ -148,7 +148,7 @@ func (m *{{ .svc.GoName }}MockServer) {{ .method.GoName }}(stream {{ qualifiedId
 
 {{- define "streamServerMethodRPCImpl" }}
 func (m *{{ .svc.GoName }}MockServer) {{ .method.GoName }}(req *{{ qualifiedIdent .method.Input.GoIdent }}, stream {{ qualifiedIdentCustom .f.GoImportPath (printf "%s_%sServer" .svc.GoName .method.GoName) }}) error {
-	expectedCall, err := m.mocker.CallV2("{{ .method.GoName }}", req)
+	expectedCall, err := m.mocker.CallV2("{{ .method.GoName }}", req , stream)
 	if err == nil && len(expectedCall.Returns()) != 2 {
 		err = fmt.Errorf("unexpected number of return values. Expected %d return values to stream, got %d", 2, len(expectedCall.Returns()))
 	}

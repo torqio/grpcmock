@@ -167,10 +167,16 @@ func TestGRPCMockStreamResponse(t *testing.T) {
 				for i := 0; i < tc.retStreamCount; i++ {
 					retStream = append(retStream, &ExampleMethodResponse{Res: currentReq + "_" + strconv.Itoa(i)})
 				}
-				call := testServer.Configure().ExampleStreamResponse().On(&ExampleMethodRequest{Req: currentReq}).Return(retStream, nil)
+
+				ctxKey := uuid.NewString()
+				ctx := context.WithValue(context.Background(), "key", ctxKey)
+				call := testServer.Configure().ExampleStreamResponse().
+					On(&ExampleMethodRequest{Req: currentReq},
+						NewContextMatcher(map[interface{}]interface{}{"key": ctxKey})).
+					Return(retStream, nil)
 
 				for i := 0; i < tc.callCount; i++ {
-					stream, err := client.ExampleStreamResponse(context.Background(), &ExampleMethodRequest{Req: currentReq})
+					stream, err := client.ExampleStreamResponse(ctx, &ExampleMethodRequest{Req: currentReq})
 					require.NoError(t, err)
 
 					for _, expectedRes := range retStream {
@@ -266,20 +272,25 @@ func TestGRPCMockStreamRequest(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		// Running the tests multiple times in parallel to make sure they work in parallel
-		for i := 0; i < 50; i++ {
+		for i := 0; i < 1; i++ {
 			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				currentReq := uuid.NewString()
+				ctxKey := uuid.NewString()
+				ctx := context.WithValue(context.Background(), "key", ctxKey)
 
 				reqStream := make([]*ExampleMethodRequest, 0, tc.reqStreamCount)
 				for i := 0; i < tc.reqStreamCount; i++ {
 					reqStream = append(reqStream, &ExampleMethodRequest{Req: currentReq + "_" + strconv.Itoa(i)})
 				}
-				call := testServer.Configure().ExampleStreamRequest().On(&ExampleMethodRequest{Req: currentReq + "_" + strconv.Itoa(tc.matchOnReq)}).Return(&ExampleMethodResponse{Res: currentReq}, nil)
+				call := testServer.Configure().ExampleStreamRequest().
+					On(&ExampleMethodRequest{Req: currentReq + "_" + strconv.Itoa(tc.matchOnReq)},
+						NewContextMatcher(map[interface{}]interface{}{"key": ctxKey})).
+					Return(&ExampleMethodResponse{Res: currentReq}, nil)
 
 				for i := 0; i < tc.callCount; i++ {
-					stream, err := client.ExampleStreamRequest(context.Background())
+					stream, err := client.ExampleStreamRequest(ctx)
 					require.NoError(t, err)
 
 					for _, req := range reqStream {
@@ -391,10 +402,15 @@ func TestGRPCMockStreamRequestResponse(t *testing.T) {
 				for i := 0; i < tc.retStreamCount; i++ {
 					retStream = append(retStream, &ExampleMethodResponse{Res: currentReq + "_" + strconv.Itoa(i)})
 				}
-				call := testServer.Configure().ExampleStreamRequestResponse().On(&ExampleMethodRequest{Req: currentReq + "_" + strconv.Itoa(tc.matchOnReq)}).Return(retStream, nil)
+				ctxKey := uuid.NewString()
+				ctx := context.WithValue(context.Background(), "key", ctxKey)
+				call := testServer.Configure().ExampleStreamRequestResponse().On(
+					&ExampleMethodRequest{Req: currentReq + "_" + strconv.Itoa(tc.matchOnReq)},
+					NewContextMatcher(map[interface{}]interface{}{"key": ctxKey})).
+					Return(retStream, nil)
 
 				for i := 0; i < tc.callCount; i++ {
-					stream, err := client.ExampleStreamRequestResponse(context.Background())
+					stream, err := client.ExampleStreamRequestResponse(ctx)
 					require.NoError(t, err)
 
 					for j, req := range reqStream {

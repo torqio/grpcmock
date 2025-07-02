@@ -461,8 +461,8 @@ func TestGRPCMockStreamRequestResponse(t *testing.T) {
 	})
 }
 
-// TestReturnFuncUnary tests the ReturnFunc functionality for unary methods
-func TestReturnFuncUnary(t *testing.T) {
+// TestDoAndReturnUnary tests the DoAndReturn functionality for unary methods
+func TestDoAndReturnUnary(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -478,10 +478,10 @@ func TestReturnFuncUnary(t *testing.T) {
 		_ = conn.Close()
 	})
 
-	// Test ReturnFunc with dynamic response
+	// Test DoAndReturn with dynamic response
 	var counter int32
 	testServer.Configure().ExampleMethod().On(mocker.Any(), &ExampleMethodRequest{Req: "dynamic"}).
-		ReturnFunc(func() (*ExampleMethodResponse, error) {
+		DoAndReturn(func() (*ExampleMethodResponse, error) {
 			val := atomic.AddInt32(&counter, 1)
 			return &ExampleMethodResponse{Res: "dynamic-response-" + strconv.Itoa(int(val))}, nil
 		})
@@ -493,9 +493,9 @@ func TestReturnFuncUnary(t *testing.T) {
 		assert.Equal(t, "dynamic-response-"+strconv.Itoa(i), res.GetRes())
 	}
 
-	// Test DefaultReturnFunc
+	// Test DefaultDoAndReturn
 	var defaultCounter int32
-	testServer.Configure().ExampleMethod().DefaultReturnFunc(func() (*ExampleMethodResponse, error) {
+	testServer.Configure().ExampleMethod().DefaultDoAndReturn(func() (*ExampleMethodResponse, error) {
 		val := atomic.AddInt32(&defaultCounter, 1)
 		return &ExampleMethodResponse{Res: "default-dynamic-" + strconv.Itoa(int(val))}, nil
 	})
@@ -508,8 +508,8 @@ func TestReturnFuncUnary(t *testing.T) {
 	}
 }
 
-// TestReturnFuncWithError tests the ReturnFunc functionality that returns an error
-func TestReturnFuncWithError(t *testing.T) {
+// TestDoAndReturnWithError tests the DoAndReturn functionality that returns an error
+func TestDoAndReturnWithError(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -525,9 +525,9 @@ func TestReturnFuncWithError(t *testing.T) {
 		_ = conn.Close()
 	})
 
-	// Test ReturnFunc that returns an error
+	// Test DoAndReturn that returns an error
 	testServer.Configure().ExampleMethod().On(mocker.Any(), &ExampleMethodRequest{Req: "error"}).
-		ReturnFunc(func() (*ExampleMethodResponse, error) {
+		DoAndReturn(func() (*ExampleMethodResponse, error) {
 			return nil, status.Error(codes.Internal, "dynamic error")
 		})
 
@@ -537,8 +537,8 @@ func TestReturnFuncWithError(t *testing.T) {
 	assert.Contains(t, err.Error(), "dynamic error")
 }
 
-// TestReturnFuncStreamResponse tests the ReturnFunc functionality for streaming response methods
-func TestReturnFuncStreamResponse(t *testing.T) {
+// TestDoAndReturnStreamResponse tests the DoAndReturn functionality for streaming response methods
+func TestDoAndReturnStreamResponse(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -554,10 +554,10 @@ func TestReturnFuncStreamResponse(t *testing.T) {
 		_ = conn.Close()
 	})
 
-	// Test ReturnFunc with streaming response
+	// Test DoAndReturn with streaming response
 	var counter int32
 	testServer.Configure().ExampleStreamResponse().On(&ExampleMethodRequest{Req: "stream-dynamic"}, mocker.Any()).
-		ReturnFunc(func() ([]*ExampleMethodResponse, error) {
+		DoAndReturn(func() ([]*ExampleMethodResponse, error) {
 			val := atomic.AddInt32(&counter, 1)
 			return []*ExampleMethodResponse{
 				{Res: "stream-dynamic-1-" + strconv.Itoa(int(val))},
@@ -584,7 +584,8 @@ func TestReturnFuncStreamResponse(t *testing.T) {
 	}
 }
 
-func TestReturnFuncDefaultStreamResponse(t *testing.T) {
+// TestDoAndReturnDefaultStreamResponse tests the DefaultDoAndReturn functionality for streaming response methods
+func TestDoAndReturnDefaultStreamResponse(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
@@ -600,9 +601,9 @@ func TestReturnFuncDefaultStreamResponse(t *testing.T) {
 		_ = conn.Close()
 	})
 
-	// Test DefaultReturnFunc with streaming response
+	// Test DefaultDoAndReturn with streaming response
 	var counter int32
-	testServer.Configure().ExampleStreamResponse().DefaultReturnFunc(func() ([]*ExampleMethodResponse, error) {
+	testServer.Configure().ExampleStreamResponse().DefaultDoAndReturn(func() ([]*ExampleMethodResponse, error) {
 		val := atomic.AddInt32(&counter, 1)
 		return []*ExampleMethodResponse{
 			{Res: "default-stream-" + strconv.Itoa(int(val))},

@@ -26,8 +26,8 @@ func (mg _{{ .svc.GoName }}_{{ .method.GoName }}Configurer) On(req, ctx any) _{{
 func (mrr _{{ .svc.GoName }}_{{ .method.GoName }}ResponseRecorder) Return(res *{{ qualifiedIdent .method.Output.GoIdent }}, err error) *mocker.RegisteredCall {
 {{- end }}
 
-{{- define "unaryMethodReturnFuncSignature" }}
-func (mrr _{{ .svc.GoName }}_{{ .method.GoName }}ResponseRecorder) ReturnFunc(fn func() (*{{ qualifiedIdent .method.Output.GoIdent }}, error)) *mocker.RegisteredCall {
+{{- define "unaryMethodDoAndReturnSignature" }}
+func (mrr _{{ .svc.GoName }}_{{ .method.GoName }}ResponseRecorder) DoAndReturn(fn func() (*{{ qualifiedIdent .method.Output.GoIdent }}, error)) *mocker.RegisteredCall {
 {{- end }}
 
 {{- define "streamMethodReturnSignature" }}
@@ -38,23 +38,23 @@ func (mrr _{{ .svc.GoName }}_{{ .method.GoName }}ResponseRecorder) Return(res []
 {{- end }}
 {{- end }}
 
-{{- define "streamMethodReturnFuncSignature" }}
+{{- define "streamMethodDoAndReturnSignature" }}
 {{- if not (isStreamingServer .method) }}
-{{ template "unaryMethodReturnFuncSignature" . }}
+{{ template "unaryMethodDoAndReturnSignature" . }}
 {{- else }}
-func (mrr _{{ .svc.GoName }}_{{ .method.GoName }}ResponseRecorder) ReturnFunc(fn func() ([]*{{ qualifiedIdent .method.Output.GoIdent }}, error)) *mocker.RegisteredCall {
+func (mrr _{{ .svc.GoName }}_{{ .method.GoName }}ResponseRecorder) DoAndReturn(fn func() ([]*{{ qualifiedIdent .method.Output.GoIdent }}, error)) *mocker.RegisteredCall {
 {{- end }}
 {{- end }}
 
-{{- define "unaryMethodDefaultReturnFuncSignature" }}
-func (mg _{{ .svc.GoName }}_{{ .method.GoName }}Configurer) DefaultReturnFunc(fn func() (*{{ qualifiedIdent .method.Output.GoIdent }}, error)) {
+{{- define "unaryMethodDefaultDoAndReturnSignature" }}
+func (mg _{{ .svc.GoName }}_{{ .method.GoName }}Configurer) DefaultDoAndReturn(fn func() (*{{ qualifiedIdent .method.Output.GoIdent }}, error)) {
 {{- end }}
 
-{{- define "streamMethodDefaultReturnFuncSignature" }}
+{{- define "streamMethodDefaultDoAndReturnSignature" }}
 {{- if not (isStreamingServer .method) }}
-{{ template "unaryMethodDefaultReturnFuncSignature" . }}
+{{ template "unaryMethodDefaultDoAndReturnSignature" . }}
 {{- else }}
-func (mg _{{ .svc.GoName }}_{{ .method.GoName }}Configurer) DefaultReturnFunc(fn func() ([]*{{ qualifiedIdent .method.Output.GoIdent }}, error)) {
+func (mg _{{ .svc.GoName }}_{{ .method.GoName }}Configurer) DefaultDoAndReturn(fn func() ([]*{{ qualifiedIdent .method.Output.GoIdent }}, error)) {
 {{- end }}
 {{- end }}
 
@@ -276,9 +276,9 @@ func (mr {{ $svc.GoName }}MockServerConfigurer) {{ $method.GoName }}() _{{ $svc.
 }
 
 {{- if isStreaming $method }}
-{{ template "streamMethodDefaultReturnFuncSignature" (dict "svc" $svc "method" $method "f" $f) }}
+{{ template "streamMethodDefaultDoAndReturnSignature" (dict "svc" $svc "method" $method "f" $f) }}
 {{- else }}
-{{ template "unaryMethodDefaultReturnFuncSignature" (dict "svc" $svc "method" $method "f" $f) }}
+{{ template "unaryMethodDefaultDoAndReturnSignature" (dict "svc" $svc "method" $method "f" $f) }}
 {{- end}}
 	mg.mocker.SetDefaultCallWithFunc("{{ $method.GoName }}", func() []any {
 		res, err := fn()
@@ -310,9 +310,9 @@ type _{{ $svc.GoName }}_{{ $method.GoName }}ResponseRecorder struct {
 }
 
 {{- if isStreaming $method }}
-{{ template "streamMethodReturnFuncSignature" (dict "svc" $svc "method" $method "f" $f) }}
+{{ template "streamMethodDoAndReturnSignature" (dict "svc" $svc "method" $method "f" $f) }}
 {{- else }}
-{{ template "unaryMethodReturnFuncSignature" (dict "svc" $svc "method" $method "f" $f) }}
+{{ template "unaryMethodDoAndReturnSignature" (dict "svc" $svc "method" $method "f" $f) }}
 {{- end}}
 	return mrr.mocker.AddExpectedCallWithFuncV2("{{ $method.GoName }}", mrr.args, func() []any {
 		res, err := fn()

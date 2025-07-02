@@ -6,12 +6,13 @@ import (
 	"github.com/google/uuid"
 )
 
-type ReturnFunc func() []any
+// DoAndReturn represents a function that can dynamically generate return values
+type DoAndReturn func() []any
 
 type SingleExpectedCall struct {
 	args          []any
 	returns       []any
-	returnFunc    ReturnFunc
+	doAndReturn   DoAndReturn
 	cachedReturns []any
 	id            string
 	actualCalls   int
@@ -29,13 +30,13 @@ func newSingleExpectedCall(args []any, returns []any) SingleExpectedCall {
 	}
 }
 
-func newSingleExpectedCallWithFunc(args []any, returnFunc ReturnFunc) SingleExpectedCall {
+func newSingleExpectedCallWithFunc(args []any, doAndReturn DoAndReturn) SingleExpectedCall {
 	var mu sync.RWMutex
 	return SingleExpectedCall{
-		args:       args,
-		returnFunc: returnFunc,
-		id:         uuid.NewString(),
-		mu:         &mu,
+		args:        args,
+		doAndReturn: doAndReturn,
+		id:          uuid.NewString(),
+		mu:          &mu,
 	}
 }
 
@@ -44,10 +45,10 @@ func (s *SingleExpectedCall) IsDefault() bool {
 }
 
 func (s *SingleExpectedCall) Returns() []any {
-	if s.returnFunc != nil {
+	if s.doAndReturn != nil {
 		// Cache the result to prevent multiple executions
 		if s.cachedReturns == nil {
-			s.cachedReturns = s.returnFunc()
+			s.cachedReturns = s.doAndReturn()
 		}
 		return s.cachedReturns
 	}
@@ -63,7 +64,7 @@ func (s *SingleExpectedCall) call() {
 	defer s.mu.Unlock()
 
 	s.actualCalls++
-
+	// Clear cached returns when called to allow fresh execution on next call
 	s.cachedReturns = nil
 }
 

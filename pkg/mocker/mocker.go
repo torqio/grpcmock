@@ -124,11 +124,11 @@ func (m *Mocker) AddExpectedCallV2(method string, args []any, returns []any) *Re
 }
 
 // AddExpectedCallWithFuncV2 add a call to the expected call chain with the given expected args and a function to generate return values
-func (m *Mocker) AddExpectedCallWithFuncV2(method string, args []any, returnFunc ReturnFunc) *RegisteredCall {
+func (m *Mocker) AddExpectedCallWithFuncV2(method string, args []any, doAndReturn DoAndReturn) *RegisteredCall {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	newCall := newSingleExpectedCallWithFunc(args, returnFunc)
+	newCall := newSingleExpectedCallWithFunc(args, doAndReturn)
 	m.expectedCalls[method] = append(m.expectedCalls[method], &newCall)
 
 	return &RegisteredCall{
@@ -149,11 +149,11 @@ func (m *Mocker) SetDefaultCall(method string, returns []any) {
 }
 
 // SetDefaultCallWithFunc sets a default call for the provided method that will use a function to generate return values
-func (m *Mocker) SetDefaultCallWithFunc(method string, returnFunc ReturnFunc) {
+func (m *Mocker) SetDefaultCallWithFunc(method string, doAndReturn DoAndReturn) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	call := newSingleExpectedCallWithFunc([]any{}, returnFunc)
+	call := newSingleExpectedCallWithFunc([]any{}, doAndReturn)
 	call.setDefault()
 	m.defaultCalls[method] = &call
 }

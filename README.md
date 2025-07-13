@@ -100,3 +100,48 @@ As you can see in the code block above, you have 2 main functions to define the 
    the defined return value will be returned.<br/>The parameters given to the `On` function can implement [mocker.Matcher](pkg/mocker/mocker.go) (line #9) interface.
    If the parameter doesn't implement the `Matcher` interface, the `eqMatcher` will be used by default.<br/>
    The `eqMatcher` is a matcher that checks if the request is equal to the given parameter using `reflect.DeepEqual` or by using `proto.Equal` in case the 2 compared objects are protobuf messages.
+
+#### Dynamic return values with DoAndReturn
+In addition to static return values, gRPCMock supports dynamic return values using `DoAndReturn` and `DefaultDoAndReturn`:
+
+```go
+// Dynamic return value for a specific request
+var counter int32
+testServer.Configure().ExampleMethod().On(mocker.Any(), &ExampleMethodRequest{Req: "dynamic"}).
+    DoAndReturn(func() (*ExampleMethodResponse, error) {
+        val := atomic.AddInt32(&counter, 1)
+        return &ExampleMethodResponse{Res: "dynamic-response-" + strconv.Itoa(int(val))}, nil
+    })
+
+// Dynamic default return value
+testServer.Configure().ExampleMethod().DefaultDoAndReturn(func() (*ExampleMethodResponse, error) {
+    return &ExampleMethodResponse{Res: "default-dynamic-" + time.Now().String()}, nil
+})
+
+// Dynamic streaming response
+testServer.Configure().ExampleStreamResponse().On(&ExampleMethodRequest{Req: "stream-dynamic"}, mocker.Any()).
+    DoAndReturn(func() ([]*ExampleMethodResponse, error) {
+        return []*ExampleMethodResponse{
+            {Res: "stream-1-" + time.Now().String()},
+            {Res: "stream-2-" + time.Now().String()},
+        }, nil
+    })
+
+// Dynamic error responses
+testServer.Configure().ExampleMethod().On(mocker.Any(), &ExampleMethodRequest{Req: "error"}).
+    DoAndReturn(func() (*ExampleMethodResponse, error) {
+        if time.Now().Second()%2 == 0 {
+            return nil, status.Error(codes.Internal, "simulated error")
+        }
+        return &ExampleMethodResponse{Res: "success"}, nil
+    })
+```
+
+**Key benefits of DoAndReturn:**
+- **Dynamic responses**: Generate different responses each time the method is called
+- **Time-based logic**: Responses that depend on current time or other runtime conditions
+- **Stateful behavior**: Maintain state between calls using closures
+- **Error simulation**: Dynamically return different error conditions
+- **Backward compatibility**: All existing Return/DefaultReturn functionality continues to work
+
+The DoAndReturn function is executed once per mock call and the result is cached to ensure consistent behavior within a single call.

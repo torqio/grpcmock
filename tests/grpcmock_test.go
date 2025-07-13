@@ -15,8 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/torqio/grpcmock/pkg/mocker"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 // Those tests won't compile unless you run `make test`. This is because they need the test proto to be compiled
@@ -457,4 +459,168 @@ func TestGRPCMockStreamRequestResponse(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no matching expected call nor default return for method ExampleStreamRequestResponse with given arguments")
 	})
+}
+
+// TestDoAndReturnUnary tests the DoAndReturn functionality for unary methods
+func TestDoAndReturnUnary(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testServer, err := NewExampleServiceMockServer()
+	require.NoError(t, err)
+	addr := startGrpcServer(t, testServer)
+
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+
+	client := NewExampleServiceClient(conn)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	// Test DoAndReturn with dynamic response
+	var counter int32
+	testServer.Configure().ExampleMethod().On(mocker.Any(), &ExampleMethodRequest{Req: "dynamic"}).
+		DoAndReturn(func() (*ExampleMethodResponse, error) {
+			val := atomic.AddInt32(&counter, 1)
+			return &ExampleMethodResponse{Res: "dynamic-response-" + strconv.Itoa(int(val))}, nil
+		})
+
+	// Call multiple times to verify the function is executed each time
+	for i := 1; i <= 3; i++ {
+		res, err := client.ExampleMethod(ctx, &ExampleMethodRequest{Req: "dynamic"})
+		require.NoError(t, err)
+		assert.Equal(t, "dynamic-response-"+strconv.Itoa(i), res.GetRes())
+	}
+
+	// Test DefaultDoAndReturn
+	var defaultCounter int32
+	testServer.Configure().ExampleMethod().DefaultDoAndReturn(func() (*ExampleMethodResponse, error) {
+		val := atomic.AddInt32(&defaultCounter, 1)
+		return &ExampleMethodResponse{Res: "default-dynamic-" + strconv.Itoa(int(val))}, nil
+	})
+
+	// Call with different request to trigger default
+	for i := 1; i <= 2; i++ {
+		res, err := client.ExampleMethod(ctx, &ExampleMethodRequest{Req: "other-request"})
+		require.NoError(t, err)
+		assert.Equal(t, "default-dynamic-"+strconv.Itoa(i), res.GetRes())
+	}
+}
+
+// TestDoAndReturnWithError tests the DoAndReturn functionality that returns an error
+func TestDoAndReturnWithError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testServer, err := NewExampleServiceMockServer()
+	require.NoError(t, err)
+	addr := startGrpcServer(t, testServer)
+
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+
+	client := NewExampleServiceClient(conn)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	// Test DoAndReturn that returns an error
+	testServer.Configure().ExampleMethod().On(mocker.Any(), &ExampleMethodRequest{Req: "error"}).
+		DoAndReturn(func() (*ExampleMethodResponse, error) {
+			return nil, status.Error(codes.Internal, "dynamic error")
+		})
+
+	res, err := client.ExampleMethod(ctx, &ExampleMethodRequest{Req: "error"})
+	require.Error(t, err)
+	assert.Nil(t, res)
+	assert.Contains(t, err.Error(), "dynamic error")
+}
+
+// TestDoAndReturnStreamResponse tests the DoAndReturn functionality for streaming response methods
+func TestDoAndReturnStreamResponse(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testServer, err := NewExampleServiceMockServer()
+	require.NoError(t, err)
+	addr := startGrpcServer(t, testServer)
+
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+
+	client := NewExampleServiceClient(conn)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	// Test DoAndReturn with streaming response
+	var counter int32
+	testServer.Configure().ExampleStreamResponse().On(&ExampleMethodRequest{Req: "stream-dynamic"}, mocker.Any()).
+		DoAndReturn(func() ([]*ExampleMethodResponse, error) {
+			val := atomic.AddInt32(&counter, 1)
+			return []*ExampleMethodResponse{
+				{Res: "stream-dynamic-1-" + strconv.Itoa(int(val))},
+				{Res: "stream-dynamic-2-" + strconv.Itoa(int(val))},
+			}, nil
+		})
+
+	// Call multiple times to verify the function is executed each time
+	for i := 1; i <= 2; i++ {
+		stream, err := client.ExampleStreamResponse(ctx, &ExampleMethodRequest{Req: "stream-dynamic"})
+		require.NoError(t, err)
+
+		res1, err := stream.Recv()
+		require.NoError(t, err)
+		assert.Equal(t, "stream-dynamic-1-"+strconv.Itoa(i), res1.GetRes())
+
+		res2, err := stream.Recv()
+		require.NoError(t, err)
+		assert.Equal(t, "stream-dynamic-2-"+strconv.Itoa(i), res2.GetRes())
+
+		_, err = stream.Recv()
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, io.EOF))
+	}
+}
+
+// TestDoAndReturnDefaultStreamResponse tests the DefaultDoAndReturn functionality for streaming response methods
+func TestDoAndReturnDefaultStreamResponse(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testServer, err := NewExampleServiceMockServer()
+	require.NoError(t, err)
+	addr := startGrpcServer(t, testServer)
+
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+
+	client := NewExampleServiceClient(conn)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	// Test DefaultDoAndReturn with streaming response
+	var counter int32
+	testServer.Configure().ExampleStreamResponse().DefaultDoAndReturn(func() ([]*ExampleMethodResponse, error) {
+		val := atomic.AddInt32(&counter, 1)
+		return []*ExampleMethodResponse{
+			{Res: "default-stream-" + strconv.Itoa(int(val))},
+		}, nil
+	})
+
+	// Call with different request to trigger default
+	for i := 1; i <= 2; i++ {
+		stream, err := client.ExampleStreamResponse(ctx, &ExampleMethodRequest{Req: "other-stream-request"})
+		require.NoError(t, err)
+
+		res, err := stream.Recv()
+		require.NoError(t, err)
+		assert.Equal(t, "default-stream-"+strconv.Itoa(i), res.GetRes())
+
+		_, err = stream.Recv()
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, io.EOF))
+	}
 }

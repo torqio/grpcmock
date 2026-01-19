@@ -120,25 +120,24 @@ func (m *{{ .svc.GoName }}MockServer) {{ .method.GoName }}(stream {{ qualifiedId
         ret := expectedCall.Returns()
 		{{- if not (isStreamingServer .method) }}
         res, _ := ret[0].(*{{ qualifiedIdent .method.Output.GoIdent }})
-        err, _ = ret[1].(error)
+        retErr, _ := ret[1].(error)
 
-		if err != nil {
+		if err := stream.SendAndClose(res); err != nil {
 			return err
 		}
 
-		return stream.SendAndClose(res)
+		return retErr
 		{{- else }}
         results, _ := ret[0].([]*{{ qualifiedIdent .method.Output.GoIdent }})
-        err, _ = ret[1].(error)
-
-        if err != nil {
-            return err
-        }
+        retErr, _ := ret[1].(error)
 
         for _, res := range results {
             if err := stream.Send(res); err != nil {
                 return err
             }
+        }
+        if retErr != nil {
+            return retErr
         }
         found = true
 		{{- end }}
@@ -148,13 +147,13 @@ func (m *{{ .svc.GoName }}MockServer) {{ .method.GoName }}(stream {{ qualifiedId
     if defaultReturn != nil {
         ret := defaultReturn.Returns()
         res, _ := ret[0].(*{{ qualifiedIdent .method.Output.GoIdent }})
-        err, _ := ret[1].(error)
+        retErr, _ := ret[1].(error)
 
-        if err != nil {
+        if err := stream.SendAndClose(res); err != nil {
             return err
         }
 
-        return stream.SendAndClose(res)
+        return retErr
     }
 	err := mocker.ErrNoMatchingCalls{"{{ .method.GoName }}"}
 	m.mocker.LogError(err)
@@ -183,11 +182,7 @@ func (m *{{ .svc.GoName }}MockServer) {{ .method.GoName }}(req *{{ qualifiedIden
 
     ret := expectedCall.Returns()
 	results, _ := ret[0].([]*{{ qualifiedIdent .method.Output.GoIdent }})
-	err, _ = ret[1].(error)
-
-	if err != nil {
-		return err
-	}
+	retErr, _ := ret[1].(error)
 
 	for _, res := range results {
 		if err := stream.Send(res); err != nil {
@@ -195,7 +190,7 @@ func (m *{{ .svc.GoName }}MockServer) {{ .method.GoName }}(req *{{ qualifiedIden
 		}
 	}
 
-	return nil
+	return retErr
 }
 {{- end}}
 

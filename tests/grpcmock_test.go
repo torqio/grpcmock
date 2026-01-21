@@ -718,10 +718,11 @@ func TestStreamRequestResponseWithError(t *testing.T) {
 	assert.Contains(t, err.Error(), "bidi error after streaming")
 }
 
-// TestStreamRequestWithError verifies client streaming calls SendAndClose before returning error.
-// Note: gRPC protocol doesn't deliver response body when error status is returned,
-// so we can only verify the error is received. The fix ensures SendAndClose is called
-// (preventing potential panics/issues) even when an error will be returned.
+// TestStreamRequestWithError verifies client streaming calls SendAndClose before returning an error.
+// Note: gRPC protocol doesn't deliver the response body when an error status is returned,
+// so we can only verify that the error is received. This test ensures the mock server still
+// completes the client-stream lifecycle (including SendAndClose) before returning the configured
+// error, avoiding inconsistent stream state compared to real gRPC behavior.
 func TestStreamRequestWithError(t *testing.T) {
 	t.Parallel()
 

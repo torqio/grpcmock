@@ -624,3 +624,182 @@ func TestDoAndReturnDefaultStreamResponse(t *testing.T) {
 		assert.True(t, errors.Is(err, io.EOF))
 	}
 }
+
+// TestStreamResponseWithError verifies server streaming returns chunks BEFORE error
+func TestStreamResponseWithError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testServer, err := NewExampleServiceMockServer()
+	require.NoError(t, err)
+	addr := startGrpcServer(t, testServer)
+
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+
+	client := NewExampleServiceClient(conn)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	expectedChunks := []*ExampleMethodResponse{
+		{Res: "chunk1"},
+		{Res: "chunk2"},
+		{Res: "chunk3"},
+	}
+	expectedErr := status.Error(codes.Internal, "test error after streaming")
+
+	testServer.Configure().ExampleStreamResponse().
+		On(&ExampleMethodRequest{Req: "stream-with-error"}, mocker.Any()).
+		Return(expectedChunks, expectedErr)
+
+	stream, err := client.ExampleStreamResponse(ctx, &ExampleMethodRequest{Req: "stream-with-error"})
+	require.NoError(t, err)
+
+	// Should receive all chunks first
+	for i, expected := range expectedChunks {
+		res, err := stream.Recv()
+		require.NoError(t, err, "chunk %d should be received before error", i)
+		assert.Equal(t, expected.GetRes(), res.GetRes())
+	}
+
+	// Final Recv should return the error
+	_, err = stream.Recv()
+	require.Error(t, err)
+	assert.Equal(t, codes.Internal, status.Code(err))
+	assert.Contains(t, err.Error(), "test error after streaming")
+}
+
+// TestStreamRequestResponseWithError verifies bidi streaming returns chunks BEFORE error
+func TestStreamRequestResponseWithError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testServer, err := NewExampleServiceMockServer()
+	require.NoError(t, err)
+	addr := startGrpcServer(t, testServer)
+
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+
+	client := NewExampleServiceClient(conn)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	expectedChunks := []*ExampleMethodResponse{
+		{Res: "bidi-chunk1"},
+		{Res: "bidi-chunk2"},
+	}
+	expectedErr := status.Error(codes.Internal, "bidi error after streaming")
+
+	testServer.Configure().ExampleStreamRequestResponse().
+		On(&ExampleMethodRequest{Req: "bidi-with-error"}, mocker.Any()).
+		Return(expectedChunks, expectedErr)
+
+	stream, err := client.ExampleStreamRequestResponse(ctx)
+	require.NoError(t, err)
+
+	// Send request that matches configured mock
+	err = stream.Send(&ExampleMethodRequest{Req: "bidi-with-error"})
+	require.NoError(t, err)
+
+	// Should receive all chunks first
+	for i, expected := range expectedChunks {
+		res, err := stream.Recv()
+		require.NoError(t, err, "chunk %d should be received before error", i)
+		assert.Equal(t, expected.GetRes(), res.GetRes())
+	}
+
+	// Next Recv should return the error
+	_, err = stream.Recv()
+	require.Error(t, err)
+	assert.Equal(t, codes.Internal, status.Code(err))
+	assert.Contains(t, err.Error(), "bidi error after streaming")
+}
+
+// TestStreamRequestWithError verifies client streaming calls SendAndClose before returning an error.
+// Note: gRPC protocol doesn't deliver the response body when an error status is returned,
+// so we can only verify that the error is received. This test ensures the mock server still
+// completes the client-stream lifecycle (including SendAndClose) before returning the configured
+// error, avoiding inconsistent stream state compared to real gRPC behavior.
+func TestStreamRequestWithError(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testServer, err := NewExampleServiceMockServer()
+	require.NoError(t, err)
+	addr := startGrpcServer(t, testServer)
+
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+
+	client := NewExampleServiceClient(conn)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	expectedRes := &ExampleMethodResponse{Res: "response-before-error"}
+	expectedErr := status.Error(codes.Internal, "client stream error after response")
+
+	testServer.Configure().ExampleStreamRequest().
+		On(&ExampleMethodRequest{Req: "client-stream-error"}, mocker.Any()).
+		Return(expectedRes, expectedErr)
+
+	stream, err := client.ExampleStreamRequest(ctx)
+	require.NoError(t, err)
+
+	// Send request that matches configured mock
+	err = stream.Send(&ExampleMethodRequest{Req: "client-stream-error"})
+	require.NoError(t, err)
+
+	// CloseAndRecv returns the error (gRPC doesn't deliver response body on error status)
+	_, err = stream.CloseAndRecv()
+	require.Error(t, err)
+	assert.Equal(t, codes.Internal, status.Code(err))
+	assert.Contains(t, err.Error(), "client stream error after response")
+}
+
+// TestStreamResponseWithErrorDefaultReturn verifies DefaultReturn also returns chunks BEFORE error
+func TestStreamResponseWithErrorDefaultReturn(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	testServer, err := NewExampleServiceMockServer()
+	require.NoError(t, err)
+	addr := startGrpcServer(t, testServer)
+
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+
+	client := NewExampleServiceClient(conn)
+	t.Cleanup(func() {
+		_ = conn.Close()
+	})
+
+	expectedChunks := []*ExampleMethodResponse{
+		{Res: "default-chunk1"},
+		{Res: "default-chunk2"},
+	}
+	expectedErr := status.Error(codes.Internal, "default error after streaming")
+
+	// Configure DefaultReturn with error
+	testServer.Configure().ExampleStreamResponse().DefaultReturn(expectedChunks, expectedErr)
+
+	// Any request should trigger the default
+	stream, err := client.ExampleStreamResponse(ctx, &ExampleMethodRequest{Req: "any-request"})
+	require.NoError(t, err)
+
+	// Should receive all chunks first
+	for i, expected := range expectedChunks {
+		res, err := stream.Recv()
+		require.NoError(t, err, "chunk %d should be received before error", i)
+		assert.Equal(t, expected.GetRes(), res.GetRes())
+	}
+
+	// Final Recv should return the error
+	_, err = stream.Recv()
+	require.Error(t, err)
+	assert.Equal(t, codes.Internal, status.Code(err))
+	assert.Contains(t, err.Error(), "default error after streaming")
+}

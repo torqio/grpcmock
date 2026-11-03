@@ -188,7 +188,7 @@ func (m *Mocker) CallV2(method string, args ...any) (*SingleExpectedCall, error)
 
 	matchedCall.call()
 
-	return matchedCall, nil
+	return matchedCall.invocation(), nil
 }
 
 // GetCallCount returns how many times a given method was called by the mock
